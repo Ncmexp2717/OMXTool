@@ -2,6 +2,7 @@
 Graphical Utility Tool for OpenMX.
 
 Copyright (C), 2015-2017, Naoya Yamaguchi.
+
 This software includes the work that is distributed in version 3 of the GPL (GPLv3).
 
 ## Log:
