@@ -44,5 +44,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
    
 ### How to
 #### start up:
-   Try `./omxtool`.
-   We recommend to launch 'OMXTool' as a background process (i.e. `./omxtool &`).
+- Try `./omxtool`.
+- We recommend to launch 'OMXTool' as a background process (i.e. `./omxtool &`).
+#### draw figures of band dispersions
+- Click
