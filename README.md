@@ -32,6 +32,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 
 ## Description:
    This script provides graphical utilities for OpenMX.
+
    Using OMXTool, you can
    - draw figures of band dispersions.
 
