@@ -42,10 +42,10 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ### Using OMXTool, you can
    - draw figures of band dispersions.
    
-### How to
-#### start up:
-- Try `./omxtool`.
-- We recommend to launch 'OMXTool' as a background process (*i.e.* `./omxtool &`).
+## How to
+- start up:
+  - Try `./omxtool`.
+  - We recommend to launch 'OMXTool' as a background process (*i.e.* `./omxtool &`).
 
-#### draw figures of band dispersions
-- Click
+- draw figures of band dispersions:
+  - Click
