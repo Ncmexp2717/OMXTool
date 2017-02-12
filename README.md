@@ -28,13 +28,19 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - 2017/02/11 Ver. 1.4.1 Modified by Naoya Yamaguchi.
 
 ## Usage:
-   ./omxtool (&)
-
+   `./omxtool`
+   
+   or:
+   
+   `./omxtool &`
+   
 ## Description:
    This script provides graphical utilities for OpenMX.
 
    Using OMXTool, you can
    - draw figures of band dispersions.
-
-### starting up:
-   ./omxtool (&)
+   
+### How to
+#### start up:
+   Try `./omxtool`.
+   We recommend to launch 'OMXTool' as a background process (i.e. `./omxtool &`).
