@@ -47,6 +47,6 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
   - Try `./omxtool`.
   - We recommend to launch 'OMXTool' as a background process (*i.e.* `./omxtool &`).
 
-![](images/figure1.png)
+![](images/figure1.png "GUI of 'OMXTool'")
 - draw figures of band dispersions:
   - Click
