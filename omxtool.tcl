@@ -1,7 +1,7 @@
 #!/bin/sh
 #\
 exec wish "$0" ${1+"$@"}
-#@(#) OMXTool.tcl Ver. 1.4 - graphical utility tool for OpenMX.
+#@(#) OMXTool Ver. 1.4 - graphical utility tool for OpenMX.
 #@(#) Copyright (C), 2015-2017, Naoya Yamaguchi.
 #@(#) This software includes the work that is distributed
 #@(#) in version 3 of the GPL (GPLv3).
@@ -27,9 +27,11 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/01/15 Ver. 1.4 Released by Naoya Yamaguchi.
 #@(#)                 (renaming 'openmx.tcl' 'OMXTool.tcl')
 #@(#)    2017/02/11 Ver. 1.4.1 Modified by Naoya Yamaguchi.
+#@(#)    2017/02/13 Ver. 1.4.2 Modified by Naoya Yamaguchi.
+#@(#)                 (renaming 'OMXTool.tcl' 'omxtool')
 #@(#)
 #@(#) Usage:
-#@(#)    ./OMXTool.tcl (&)
+#@(#)    ./omxtool (&)
 #@(#)
 #@(#) Description:
 #@(#)    This script provides graphical utilities for OpenMX.
@@ -605,6 +607,8 @@ set bandgnuColor #000000
 set bandgnuPreview on
 set bandgnuExport "postscript eps"
 set bandgnuEnhanced on
+set ratio 1
+set ytics 1
 if [file exists $rootPath/.omxtoolrc] {
   source $rootPath/.omxtoolrc
 } else {
