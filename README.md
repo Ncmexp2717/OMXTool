@@ -28,7 +28,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - 2017/02/11 Ver. 1.4.1 Modified by Naoya Yamaguchi.
 
 ## Usage:
-   ./OMXTool.tcl (&)
+   ./omxtool (&)
 
 ## Description:
    This script provides graphical utilities for OpenMX.
@@ -37,4 +37,4 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
    - draw figures of band dispersions.
 
 ### starting up:
-   ./OMXTool.tcl (&)
+   ./omxtool (&)
