@@ -44,7 +44,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
    
 ## How to
 - start up:
-  - Try `./omxtool` and launch a GUI of 'OMXTool' as shown the figure below.
+  - Try `./omxtool` and launch a GUI of 'OMXTool' as shown in the figure below.
   - We recommend to launch 'OMXTool' as a background process (*i.e.* `./omxtool &`).
 
 ![](images/figure1.png "GUI of 'OMXTool'")
