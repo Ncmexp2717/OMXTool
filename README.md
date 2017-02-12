@@ -1,5 +1,5 @@
 # OMXTool
-Graphical Utility Tool for OpenMX.
+Graphical Utility Tool for [OpenMX](http://www.openmx-square.org).
 
 Copyright (C), 2015-2017, Naoya Yamaguchi.
 
@@ -28,6 +28,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - 2017/02/11 Ver. 1.4.1 Modified by Naoya Yamaguchi.
 
 ## Usage:
+### starting up:
    ./OMXTool.tcl (&)
 
 ## Description:
