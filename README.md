@@ -46,10 +46,14 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ## How to
 ### start up:
 1. Try `./omxtool` and launch a GUI of **OMXTool** as shown in the figure below.
+
 - We recommend to launch 'OMXTool' as a background process (*i.e.* `./omxtool &`).
 
 ![GUI of 'OMXTool'](images/figure1.png)
 ### draw figures of band dispersions:
 1. Click the `Band` button.
-1. Select a \*.Band file and you can see a preview of the band dispersion.
+1. Select a \*.Band file and you can see a preview of the band dispersion as shown in the figure below.
+
 - How to save the figures:
+ 1. Click the `Export` button and open a dialog box to save the figure.
+ 2. Save the figure through the dialog box.
