@@ -62,3 +62,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
   2. Save the figure through the dialog box.
 
 ![Save dialog](images/figure4.png)
+
+### set options:
+1. Click the `Option` button and open a window for the setting.
+1. Set options such as gnuplot options.
