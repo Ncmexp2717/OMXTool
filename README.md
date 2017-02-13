@@ -38,7 +38,8 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
    
 ## Description:
    This script provides graphical utilities for OpenMX.
-   **OMXTool** enables you to do the following processes through a GUI.
+   
+   **OMXTool** helps you do the following processes through a GUI.
 
 ### Using OMXTool, you can
    - draw figures of band dispersions.
