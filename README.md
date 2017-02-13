@@ -52,7 +52,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ![GUI of 'OMXTool'](images/figure1.png)
 ### draw figures of band dispersions:
 1. Click the `Band` button.
-1. Select a \*.Band file and you can see a preview of the band dispersion as shown in the figure below.
+1. Select a \*.Band file and you can see a preview of the band dispersion as shown in the figures below.
 
 ![File open dialog](images/figure2.png)
 ![Preview window of a band dispersion](images/figure3.png)
