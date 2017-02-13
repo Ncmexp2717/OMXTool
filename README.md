@@ -54,6 +54,9 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 1. Click the `Band` button.
 1. Select a \*.Band file and you can see a preview of the band dispersion as shown in the figure below.
 
+![Preview window of a band dispersion](images/figure2.png)
 - How to save the figures:
- 1. Click the `Export` button and open a dialog box to save the figure.
- 2. Save the figure through the dialog box.
+1. Click the `Export` button and open a dialog box to save the figure.
+2. Save the figure through the dialog box.
+
+![Save dialog](images/figure3.png)
