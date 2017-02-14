@@ -31,19 +31,23 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 
 ## Usage:
    `./omxtool`
-   
+
    or:
-   
+
    `./omxtool &`
-   
+
 ## Description:
    This script provides graphical utilities for OpenMX.
-   
+
    **OMXTool** helps you do the following processes through a GUI.
 
 ### Using OMXTool, you can
-   - draw figures of band dispersions.
-   
+- draw figures of band dispersions.
+
+### Installation
+1. Download `OMXTool-\*.tar.gz` or `OMXTool-\*.zip` and unzip it. (Usually, \*=*version*.)
+2. Put `omxtool` on your computer.
+
 ## How to
 ### start up:
 1. Try `./omxtool` and launch a GUI of **OMXTool** as shown in the figure below.
