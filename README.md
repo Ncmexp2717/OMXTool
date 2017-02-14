@@ -50,18 +50,18 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 
 - We recommend to launch 'OMXTool' as a background process (*i.e.* `./omxtool &`).
 
-![GUI of 'OMXTool'](https://github.com/Ncmexp2717/OMXTool/tree/images/images/figure1.png)
+![GUI of 'OMXTool'](https://github.com/Ncmexp2717/OMXTool/raw/images/images/figure1.png)
 ### draw figures of band dispersions:
 1. Click the `Band` button.
 1. Select a \*.Band file and you can see a preview of the band dispersion as shown in the figures below.
 
-![File open dialog](https://github.com/Ncmexp2717/OMXTool/tree/images/images/figure2.png)
-![Preview window of a band dispersion](https://github.com/Ncmexp2717/OMXTool/tree/images/images/figure3.png)
+![File open dialog](https://github.com/Ncmexp2717/OMXTool/raw/images/images/figure2.png)
+![Preview window of a band dispersion](https://github.com/Ncmexp2717/OMXTool/raw/images/images/figure3.png)
 - How to save the figures:
   1. Click the `Export` button and open a dialog box to save the figure.
   2. Save the figure through the dialog box.
 
-![Save dialog](https://github.com/Ncmexp2717/OMXTool/tree/images/images/figure4.png)
+![Save dialog](https://github.com/Ncmexp2717/OMXTool/raw/images/images/figure4.png)
 
 ### set options:
 1. Click the `Option` button and open a window for the setting.
