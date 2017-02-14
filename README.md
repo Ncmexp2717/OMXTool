@@ -45,7 +45,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - draw figures of band dispersions.
 
 ### Installation
-1. Download `OMXTool-\*.tar.gz` or `OMXTool-\*.zip` and unzip it. (Usually, \*=*version*.)
+1. Download `OMXTool-*.tar.gz` or `OMXTool-*.zip` and unzip it. (Usually, \*=*version*.)
 2. Put `omxtool` on your computer.
 
 ## How to
