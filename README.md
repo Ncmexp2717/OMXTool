@@ -29,13 +29,6 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - 2017/02/13 Ver. 1.4.2 Modified by Naoya Yamaguchi.
   (renaming 'OMXTool.tcl' 'omxtool')
 
-## Usage:
-   `./omxtool`
-
-   or:
-
-   `./omxtool &`
-
 ## Description:
    This script provides graphical utilities for OpenMX.
 
@@ -44,9 +37,19 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ### Using OMXTool, you can
 - draw figures of band dispersions.
 
+## Requirements
+- `wish` (Windowing Shell) and `gnuplot` are required.
+
 ## Installation
 1. Download `OMXTool-*.tar.gz` or `OMXTool-*.zip` from [here](https://github.com/Ncmexp2717/OMXTool/releases) and unzip it. (Usually, \*=*version*.)
 2. Put `omxtool` on your computer.
+
+## Usage:
+   `./omxtool`
+
+   or:
+
+   `./omxtool &`
 
 ## How to
 ### start up:
