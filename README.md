@@ -71,7 +71,10 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ![Save dialog](https://github.com/Ncmexp2717/OMXTool/raw/images/figure4.png)
 
 ### set options for gnuplot:
-1. Click the `Option` button and open a window for the setting.
+1. Click the `Option` button and open the `Option` window for the setting.
 1. Set gnuplot options.
+
+- The settings are saved on clicking the `Close` button in the `Option` window.
+- Clicking the `Reset` button sets them to the default settings.
 
 ![Option](https://github.com/Ncmexp2717/OMXTool/raw/images/figure5.png)
