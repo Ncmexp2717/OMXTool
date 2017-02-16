@@ -77,4 +77,4 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ![Option](https://github.com/Ncmexp2717/OMXTool/raw/images/figure5.png)
 
 - The settings are saved on clicking the `Close` button in the `Option` window.
-- Clicking the `Reset` button sets them to the default settings.
+- Clicking the `Reset` button sets them the default settings.
