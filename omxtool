@@ -29,6 +29,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/02/11 Ver. 1.4.1 Modified by Naoya Yamaguchi.
 #@(#)    2017/02/13 Ver. 1.4.2 Modified by Naoya Yamaguchi.
 #@(#)                 (renaming 'OMXTool.tcl' 'omxtool')
+#@(#)    2017/03/04 Ver. 1.4.3 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -115,8 +116,15 @@ proc bandgnu {argc argv} {
   }
   set meig $maxneig
   if {$argc==3} {
-    set ymin [expr {min([lindex $argv 1], [lindex $argv 2])/$Unit+$ChemP}]
-    set ymax [expr {max([lindex $argv 1], [lindex $argv 2])/$Unit+$ChemP}]
+    set Emin [lindex $argv 1]
+    set Emax [lindex $argv 2]
+    if {$Emin>$Emax} {
+      set tmp $Emin
+      set Emin $Emax
+      set Emax $tmp
+    }
+    set ymin [expr {$Emin/$Unit+$ChemP}]
+    set ymax [expr {$Emax/$Unit+$ChemP}]
     set lmin $maxneig
     set lmax 1
   } else {
@@ -163,13 +171,17 @@ proc bandgnu {argc argv} {
 	if {$argc==3} {
 	  for {set lminm1 [expr {$lmin-1}]} {$lminm1>=0} {incr lminm1 -1} {
 	    if {[lindex $data $lminm1]<$ymin} {
-	      set lmin [expr {$lminm1+2}]
+	      if {$lmin>$lminm1+2} {
+		set lmin [expr {$lminm1+2}]
+	      }
 	      break
 	    }
 	  }
 	  for {set lmaxm1 [expr {$lmax-1}]} {$lmaxm1<$meig} {incr lmaxm1} {
 	    if {[lindex $data $lmaxm1]>$ymax} {
-	      set lmax $lmaxm1
+	      if {$lmax<$lmaxm1} {
+		set lmax $lmaxm1
+	      }
 	      break
 	    }
 	  }
@@ -238,7 +250,7 @@ proc bandgnu {argc argv} {
   puts $fp "set mytics 5"
   puts $fp [format "set xra \[%lf:%lf\]" [lindex $klinel 0] [lindex $klinel end]]
   if {$argc==3} {
-    puts $fp [format "set yra \[%lf:%lf\]" [expr {min([lindex $argv 1], [lindex $argv 2])}] [expr {max([lindex $argv 1], [lindex $argv 2])}]]
+    puts $fp [format "set yra \[%lf:%lf\]" $Emin $Emax]
   } else {
     puts $fp [format "set yra \[%lf:%lf\]" [expr {($ymin1-$ChemP)*$Unit}] [expr {($ymax1-$ChemP)*$Unit}]]
   }
@@ -366,21 +378,24 @@ proc band {} {
 	set tmp \[tk_getSaveFile -initialdir $dir -filetypes {{{Encapsulated PostScript (EPS)} {*.eps}} {{Portable Document Format (PDF)} {*.pdf}} {{Portable Network Graphics (PNG)} {*.png}} {{Joint Photographic Experts Group (JPEG)} {*.jpeg}} {{Scalable Vector Graphics (SVG)} {*.svg}} {{Enhanced Metafile Format (EMF)} {*.emf}} {{Graphics Interchange Format (GIF)} {*.gif}}} -parent .t$nwin\]
 	if {\$tmp eq \"\"} {return}
 	set filetype \[file extension \$tmp]
-	if {\$filetype eq \"eps\"} {
+	if {\$filetype eq \".eps\"} {
 	set bandgnuExport {postscript eps}
-	} elseif {\$filetype eq \"pdf\"} {
+	} elseif {\$filetype eq \".pdf\"} {
 	set bandgnuExport pdf
-	} elseif {\$filetype eq \"png\"} {
+	} elseif {\$filetype eq \".png\"} {
 	set bandgnuExport png
-	} elseif {\$filetype eq \"jpeg\"} {
+	} elseif {\$filetype eq \".jpeg\"} {
 	set bandgnuExport jpeg
-	} elseif {\$filetype eq \"svg\"} {
+	} elseif {\$filetype eq \".svg\"} {
 	set bandgnuExport svg
-	} elseif {\$filetype eq \"emf\"} {
+	} elseif {\$filetype eq \".emf\"} {
 	set bandgnuExport emf
-	} elseif {\$filetype eq \"gif\"} {
+	} elseif {\$filetype eq \".gif\"} {
 	set bandgnuExport gif
 	}
+	eval \[exec gnuplot << \"
+	\ \ se term \$bandgnuExport
+	\"\]
 	puts $p \"  se term \$bandgnuExport enhanced color \$fontSize\"
 	puts $p \"  se ou '\$tmp'\"
 	puts $p \"  rep\"
@@ -396,7 +411,8 @@ proc band {} {
 	  pack .t$nwin.lgap
 	} else {
 	  frame .t$nwin.fGnuplot
-	  button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "puts $p \"  rep\""
+	  #button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "puts $p \"  rep\""
+	  button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "puts $p \"  plot '$path.BANDDAT1' lt -1\""
 	  frame .t$nwin.fBranch
 	  spinbox .t$nwin.fBranch.sb -from $lmin -to $lmax -increment 1
 	  button .t$nwin.fBranch.b -text Branch -command "
@@ -405,7 +421,7 @@ proc band {} {
 	  } elseif {\[.t$nwin.fBranch.sb get\]<$lmin} {
 	  .t$nwin.fBranch.sb set $lmin
 	  }
-	  puts $p \"  plot '$path.BANDDAT1', '$path.BANDDAT1' in \[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+2)*$nkpath-2}\] lw 3\"
+	  puts $p \"  replot '$path.BANDDAT1' in \[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+2)*$nkpath-2}\] lt 1 lw 3\"
 	  "
 	  label .t$nwin.fBranch.l -text "($lmin-$lmax)"
 	  if {$bandgnuPreview} {
@@ -621,7 +637,7 @@ if {[info exists env(HOSTNAME)]} {
 } else {
   set HOSTNAME localhost
 }
-wm title . "OMXTool.tcl@$HOSTNAME"
+wm title . "OMXTool@$HOSTNAME"
 label .l0 -textvariable buff
 label .l1 -textvariable buff1 -justify left
 button .bband -text Band -command band
