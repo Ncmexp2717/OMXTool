@@ -1,7 +1,7 @@
 #!/bin/sh
 #\
-exec wish "$0" ${1+"$@"}
-#@(#) OMXTool Ver. 1.4 - graphical utility tool for OpenMX.
+exec tclsh "$0" ${1+"$@"}
+#@(#) OMXTool Ver. 1.5 - graphical utility tool for OpenMX.
 #@(#) Copyright (C), 2015-2017, Naoya Yamaguchi.
 #@(#) This software includes the work that is distributed
 #@(#) in version 3 of the GPL (GPLv3).
@@ -30,6 +30,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/02/13 Ver. 1.4.2 Modified by Naoya Yamaguchi.
 #@(#)                 (renaming 'OMXTool.tcl' 'omxtool')
 #@(#)    2017/03/04 Ver. 1.4.3 Modified by Naoya Yamaguchi.
+#@(#)    2017/03/09 Ver. 1.5 Released by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -38,6 +39,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    This script provides graphical utilities for OpenMX.
 #@(#)
 
+package require Tk
 proc status {} {
   set stat ""
   if {![catch {exec which qstat}]} {
@@ -56,13 +58,6 @@ proc status1 {} {
   set stat ""
   catch {set stat [exec ps -fu $::env(USER) | grep "reload\\.exp"]}
   return $stat
-}
-proc load_file {} {
-  global dir path
-  set path [tk_getOpenFile -initialdir $dir -filetypes {{{Band Data} {.Band}}}]
-  if {$path ne ""} {
-    set dir [file dirname $path]
-  }
 }
 proc bandgap {} {
   global dir path
@@ -282,7 +277,7 @@ proc bandgnu {argc argv} {
   return "$lmin $lmax $nkpath"
 }
 proc band {} {
-  global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics
+  global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor
   if {$bandgnuMode eq "C"} {
     if {$bandgnuPath eq ""} {
       set tmp [tk_getOpenFile -initialdir $dir -filetypes {{{source file} {bandgnu*.c}}} -title "Select a source file of 'bandgnu'"]
@@ -293,163 +288,345 @@ proc band {} {
       }
     }
   }
-  load_file
+  set path [tk_getOpenFile -initialdir $dir -filetypes {{{Band Data} {.Band}}}]
   if {$path ne ""} {
-    cd $rootPath
-    if {$bandgnuMode eq "C"} {
-      if {![file exists $bandgnuPath]} {
-	puts "Error: Check the path of 'bandgnu*.c'."
-	puts [pwd]
-	exit 1
-      }
-      set bandgnu [file rootname [file tail $bandgnuPath]]
-      if {![file exists $bandgnu]} {
-	exec gcc $bandgnuPath -lm -o $bandgnu
-      }
-      cd $dir
-      set path [file tail $path]
-      catch {exec $rootPath/$bandgnu $path}
-    } else {
-      cd $dir
-      set path [file tail $path]
-      set bandgnuList [bandgnu 3 "$path $yraMin $yraMax"]
-      set lmin [lindex $bandgnuList 0]
-      set lmax [lindex $bandgnuList 1]
-      set nkpath [lindex $bandgnuList 2]
+    set dir [file dirname $path]
+  } else {
+    return
+  }
+  cd $rootPath
+  if {$bandgnuMode eq "C"} {
+    if {![file exists $bandgnuPath]} {
+      puts stderr "Error: Check the path of 'bandgnu*.c'."
+      puts [pwd]
+      exit 1
     }
-    set path [file rootname $path]
-    set gpath $path.GNUBAND
-    if {$bandgnuMode eq "Tcl" && $bandgnuPreview} {
-      eval [exec gnuplot << "
-      \ \ se term tkcanvas
-      \ \ se ou '.$path.tcl'
-      \ \ load '$gpath'
-      \ \ se size ratio $ratio
-      \ \ se yr \[$yraMin:$yraMax\]
-      \ \ se yl '$ylabel'
-      \ \ se yti $ytics
-      \ \ rep
-      "]
+    set bandgnu [file rootname [file tail $bandgnuPath]]
+    if {![file exists $bandgnu]} {
+      exec gcc $bandgnuPath -lm -o $bandgnu
     }
-    set p [open |gnuplot w]
-    fconfigure $p -buffering none
-    puts $p "  set mouse"
-    if {$bandgnuMode eq "Tcl"} {
-      puts $p "  set term unknown"
-    }
-    if {$bandgnuEnhanced} {
-      set terminal "x11 enhanced"
-    } else {
-      set terminal x11
-    }
-    set bandgnuExport "postscript eps"
-    set fp [open $gpath r]
-    while {[gets $fp txt] >= 0} {
-      if {[string equal -length 5 $txt pause]} {
-	puts $p "  se size ratio $ratio"
-	puts $p "  se yr \[$yraMin:$yraMax\]"
-	puts $p "  se yl '$ylabel'"
-	puts $p "  se yti $ytics"
+    cd $dir
+    set path [file tail $path]
+    catch {exec $rootPath/$bandgnu $path}
+  } else {
+    cd $dir
+    set path [file tail $path]
+    set bandgnuList [bandgnu 3 "$path $yraMin $yraMax"]
+    set lmin [lindex $bandgnuList 0]
+    set lmax [lindex $bandgnuList 1]
+    set nkpath [lindex $bandgnuList 2]
+  }
+  set path [file rootname $path]
+  set gpath $path.GNUBAND
+  if {$bandgnuMode eq "Tcl" && $bandgnuPreview} {
+    eval [exec gnuplot << "
+    \ \  se term tkcanvas
+    \ \  se ou '.$path.tcl'
+    \ \  load '$gpath'
+    \ \  se size ratio $ratio
+    \ \  se yr \[$yraMin:$yraMax\]
+    \ \  se yl '$ylabel'
+    \ \  se yti $ytics
+    \ \  rep
+    "]
+  }
+  set p [open |gnuplot w]
+  fconfigure $p -buffering none
+  puts $p "  set mouse"
+  if {$bandgnuMode eq "Tcl"} {
+    puts $p "  set term unknown"
+  }
+  if {$bandgnuEnhanced} {
+    set terminal "x11 enhanced"
+  } else {
+    set terminal x11
+  }
+  set bandgnuExport "postscript eps"
+  set fp [open $gpath r]
+  while {[gets $fp txt] >= 0} {
+    if {[string equal -length 5 $txt pause]} {
+      puts $p "  se size ratio $ratio"
+      puts $p "  se yr \[$yraMin:$yraMax\]"
+      puts $p "  se yl '$ylabel'"
+      puts $p "  se yti $ytics"
+      puts $p "  se term $terminal"
+      if {$bandgnuAE} {
+	puts $p "  se term $bandgnuExport enhanced color $fontSize"
+	puts $p "  se ou '$path.eps'"
+	puts $p "  rep"
 	puts $p "  se term $terminal"
-	if {$bandgnuAE} {
-	  puts $p "  se term $bandgnuExport enhanced color $fontSize"
-	  puts $p "  se ou '$path.eps'"
-	  puts $p "  rep"
-	  puts $p "  se term $terminal"
-	  puts $p "  se output"
-	}
-	if {$bandgnuMode eq "C"} {
-	  puts $p "  rep"
-	} elseif {$bandgnuPreview} {
-	  source .$path.tcl
-	  file delete .$path.tcl
-	}
-	toplevel .t$nwin
-	wm title .t$nwin $dir/$gpath
-	if {$bandgnuMode eq "C"} {
-	  set gap [bandgap]
-	} else {
-	  set gap "not supported"
-	}
-	label .t$nwin.lgap -text "Bandgap = $gap \[eV\]"
-	frame .t$nwin.fCommon
-	button .t$nwin.fCommon.bexit -text Close -command "band_close $nwin"
-	button .t$nwin.fCommon.bExport -text Export -command "
-	set tmp \[tk_getSaveFile -initialdir $dir -filetypes {{{Encapsulated PostScript (EPS)} {*.eps}} {{Portable Document Format (PDF)} {*.pdf}} {{Portable Network Graphics (PNG)} {*.png}} {{Joint Photographic Experts Group (JPEG)} {*.jpeg}} {{Scalable Vector Graphics (SVG)} {*.svg}} {{Enhanced Metafile Format (EMF)} {*.emf}} {{Graphics Interchange Format (GIF)} {*.gif}}} -parent .t$nwin\]
-	if {\$tmp eq \"\"} {return}
-	set filetype \[file extension \$tmp]
-	if {\$filetype eq \".eps\"} {
-	set bandgnuExport {postscript eps}
-	} elseif {\$filetype eq \".pdf\"} {
-	set bandgnuExport pdf
-	} elseif {\$filetype eq \".png\"} {
-	set bandgnuExport png
-	} elseif {\$filetype eq \".jpeg\"} {
-	set bandgnuExport jpeg
-	} elseif {\$filetype eq \".svg\"} {
-	set bandgnuExport svg
-	} elseif {\$filetype eq \".emf\"} {
-	set bandgnuExport emf
-	} elseif {\$filetype eq \".gif\"} {
-	set bandgnuExport gif
-	}
-	eval \[exec gnuplot << \"
-	\ \ se term \$bandgnuExport
-	\"\]
-	puts $p \"  se term \$bandgnuExport enhanced color \$fontSize\"
-	puts $p \"  se ou '\$tmp'\"
-	puts $p \"  rep\"
-	puts $p \"  se term $terminal\"
-	puts $p \"  se ou\"
-	"
-	if {$bandgnuMode eq "Tcl" && $bandgnuPreview} {
-	  canvas .t$nwin.c -bg $bandgnuColor
-	  pack .t$nwin.c
-	  gnuplot .t$nwin.c
-	}
-	if {$bandgnuMode eq "C"} {
-	  pack .t$nwin.lgap
-	} else {
-	  frame .t$nwin.fGnuplot
-	  #button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "puts $p \"  rep\""
-	  button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "puts $p \"  plot '$path.BANDDAT1' lt -1\""
-	  frame .t$nwin.fBranch
-	  spinbox .t$nwin.fBranch.sb -from $lmin -to $lmax -increment 1
-	  button .t$nwin.fBranch.b -text Branch -command "
-	  if {\[.t$nwin.fBranch.sb get\]>$lmax} {
-	  .t$nwin.fBranch.sb set $lmax
-	  } elseif {\[.t$nwin.fBranch.sb get\]<$lmin} {
-	  .t$nwin.fBranch.sb set $lmin
-	  }
-	  puts $p \"  replot '$path.BANDDAT1' in \[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+2)*$nkpath-2}\] lt 1 lw 3\"
-	  "
-	  label .t$nwin.fBranch.l -text "($lmin-$lmax)"
-	  if {$bandgnuPreview} {
-	    checkbutton .t$nwin.fGnuplot.cbBackground -text Background -variable BGColor -offvalue #FFFFFF -onvalue $bandgnuColor -command ".t$nwin.c configure -bg \$BGColor"
-	    .t$nwin.fGnuplot.cbBackground select
-	  }
-	  pack .t$nwin.fGnuplot
-	  if {$bandgnuPreview} {
-	    pack .t$nwin.fGnuplot.bGnuplot .t$nwin.fGnuplot.cbBackground -side left
-	  } else {
-	    pack .t$nwin.fGnuplot.bGnuplot
-	  }
-	  pack .t$nwin.fBranch
-	  pack .t$nwin.fBranch.sb .t$nwin.fBranch.l .t$nwin.fBranch.b -side left
-	}
-	pack .t$nwin.fCommon
-	pack .t$nwin.fCommon.bExport .t$nwin.fCommon.bexit -side left
-	incr nwin
+	puts $p "  se output"
+      }
+      if {$bandgnuMode eq "C"} {
+	puts $p "  rep"
+      } elseif {$bandgnuPreview} {
+	source .$path.tcl
+	file delete .$path.tcl
+      }
+      toplevel .t$nwin
+      wm title .t$nwin $dir/$gpath
+      if {$bandgnuMode eq "C"} {
+	set gap [bandgap]
       } else {
-	puts $p $txt
+	set gap "not supported"
+      }
+      label .t$nwin.lgap -text "Bandgap = $gap \[eV\]"
+      frame .t$nwin.fCommon
+      button .t$nwin.fCommon.bexit -text Close -command "band_close $nwin"
+      button .t$nwin.fCommon.bExport -text Export -command "
+      set tmp \[tk_getSaveFile -initialdir $dir -filetypes {{{Encapsulated PostScript (EPS)} {*.eps}} {{Portable Document Format (PDF)} {*.pdf}} {{Portable Network Graphics (PNG)} {*.png}} {{Joint Photographic Experts Group (JPEG)} {*.jpeg}} {{Scalable Vector Graphics (SVG)} {*.svg}} {{Enhanced Metafile Format (EMF)} {*.emf}} {{Graphics Interchange Format (GIF)} {*.gif}}} -parent .t$nwin\]
+      if {\$tmp eq \"\"} {return}
+      set filetype \[file extension \$tmp]
+      if {\$filetype eq \".eps\"} {
+      set bandgnuExport {postscript eps}
+      } elseif {\$filetype eq \".pdf\"} {
+      set bandgnuExport pdf
+      } elseif {\$filetype eq \".png\"} {
+      set bandgnuExport png
+      } elseif {\$filetype eq \".jpeg\"} {
+      set bandgnuExport jpeg
+      } elseif {\$filetype eq \".svg\"} {
+      set bandgnuExport svg
+      } elseif {\$filetype eq \".emf\"} {
+      set bandgnuExport emf
+      } elseif {\$filetype eq \".gif\"} {
+      set bandgnuExport gif
+      }
+      eval \[exec gnuplot << \"
+      \ \ se term \$bandgnuExport
+      \"\]
+      puts $p \"  se term \$bandgnuExport enhanced color \$fontSize\"
+      puts $p \"  se ou '\$tmp'\"
+      puts $p \"  rep\"
+      puts $p \"  se term $terminal\"
+      puts $p \"  se ou\"
+      tk_messageBox -type ok -message \"\$tmp is made.\" -title \"Export\"
+      "
+      if {$bandgnuMode eq "Tcl" && $bandgnuPreview} {
+	canvas .t$nwin.c -bg $bandgnuColor
+	pack .t$nwin.c
+	gnuplot .t$nwin.c
+      }
+      if {$bandgnuMode eq "C"} {
+	pack .t$nwin.lgap
+      } else {
+	frame .t$nwin.fGnuplot
+	button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "
+	puts $p \"  se size ratio \$ratio\"
+	puts $p \"  se yl '\$ylabel'\"
+	puts $p \"  se yti \$ytics\"
+	puts $p \"  plot '$path.BANDDAT1' lt -1 lc rgb '\$BANDDAT1Color'\"
+	"
+	frame .t$nwin.fBranch
+	spinbox .t$nwin.fBranch.sb -from $lmin -to $lmax -increment 1
+	button .t$nwin.fBranch.b -text Branch -command "
+	if {\[.t$nwin.fBranch.sb get\]>$lmax} {
+	.t$nwin.fBranch.sb set $lmax
+	} elseif {\[.t$nwin.fBranch.sb get\]<$lmin} {
+	.t$nwin.fBranch.sb set $lmin
+	}
+	puts $p \"  se size ratio \$ratio\"
+	puts $p \"  se yl '\$ylabel'\"
+	puts $p \"  se yti \$ytics\"
+	puts $p \"  replot '$path.BANDDAT1' in \[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+2)*$nkpath-2}\] lt 1 lw 3 lc rgb '\$branchColor'\"
+	"
+	label .t$nwin.fBranch.l -text "($lmin-$lmax)"
+	if {$bandgnuPreview} {
+	  checkbutton .t$nwin.fGnuplot.cbBackground -text Background -variable BGColor -offvalue #ffffff -onvalue $bandgnuColor -command ".t$nwin.c configure -bg \$BGColor"
+	  .t$nwin.fGnuplot.cbBackground select
+	}
+	button .t$nwin.fCommon.bOption -text Option -command openOptionGP
+	pack .t$nwin.fGnuplot
+	if {$bandgnuPreview} {
+	  pack .t$nwin.fGnuplot.bGnuplot .t$nwin.fGnuplot.cbBackground -side left
+	} else {
+	  pack .t$nwin.fGnuplot.bGnuplot
+	}
+	pack .t$nwin.fBranch
+	pack .t$nwin.fBranch.sb .t$nwin.fBranch.l .t$nwin.fBranch.b -side left
+      }
+      pack .t$nwin.fCommon
+      pack .t$nwin.fCommon.bExport .t$nwin.fCommon.bOption .t$nwin.fCommon.bexit -side left
+      incr nwin
+    } else {
+      puts $p $txt
+    }
+  }
+  close $fp
+  lappend gp $p
+}
+proc bin2bin {fp typep num format_src fp_new} {
+  global val
+  upvar $typep type
+  if {$format_src eq "l_format"} {
+    set format b_format
+  } else {
+    set format l_format
+  }
+  set data [read $fp [expr {$type(size) * $num}]]
+  binary scan $data $type($format_src)$num val
+  if {$typep ne "char"} {
+    set data [binary format $type($format)$num $val]
+  } else {
+    set data [binary format "A$num" $val]
+  }
+  puts -nonewline $fp_new $data
+}
+proc b2bMain {fname format} {
+  global val
+  if {[info patchlevel]<8.5} {
+    puts stderr "Error: Versions earlier than tclsh8.5 are incompatible."
+    exit 1
+  }
+  if {$format eq "b"} {
+    set extension _l
+  } else {
+    set extension _b
+  }
+  set fp [open $fname r]
+  set fp_new [open $fname$extension w]
+  fconfigure $fp -translation binary
+  fconfigure $fp_new -translation binary
+  append format _format
+  array set int {size 4 l_format i b_format I}
+  array set double {size 8 l_format q b_format Q}
+  array set char {size 1 l_format a b_format a}
+  bin2bin $fp int 6 $format $fp_new
+  set atomnum [lindex $val 0]
+  set SpinP_switch [lindex $val 1]
+  if {$SpinP_switch>3 || $SpinP_switch<0} {
+    return 1
+  }
+  set TCpyCell [lindex $val 5]
+  bin2bin $fp double [expr {($TCpyCell + 1) * 4}] $format $fp_new ;#atv
+  bin2bin $fp int [expr {($TCpyCell + 1) * 4}] $format $fp_new ;#atv_ijk
+  bin2bin $fp int $atomnum $format $fp_new ;#Total_NumOrbs
+  set Total_NumOrbs $val
+  bin2bin $fp int $atomnum $format $fp_new ;#FNAN
+  set FNAN $val
+  set natn ""
+  foreach fnan $FNAN {
+    bin2bin $fp int [expr {$fnan + 1}] $format $fp_new ;#natn
+    lappend natn $val
+  }
+  foreach fnan $FNAN {
+    bin2bin $fp int [expr {$fnan + 1}] $format $fp_new ;#ncn
+  }
+  bin2bin $fp double 12 $format $fp_new ;#tv
+  bin2bin $fp double 12 $format $fp_new ;#rtv
+  bin2bin $fp double [expr {$atomnum * 4}] $format $fp_new ;#Gxyz
+  for {set spin 0} {$spin <= $SpinP_switch} {incr spin} {
+    for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+      set TNO1 [lindex $Total_NumOrbs $ct_AN]
+      set fnan [lindex $FNAN $ct_AN]
+      for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+	set Gh_AN [lindex $natn $ct_AN $h_AN]
+	set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+	for {set i 0} {$i < $TNO1} {incr i} {
+	  bin2bin $fp double $TNO2 $format $fp_new ;#Hk
+	}
       }
     }
-    close $fp
-    lappend gp $p
+  }
+  if {$SpinP_switch == 3} {
+    for {set spin 0} {$spin < 3} {incr spin} {
+      for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+	set TNO1 [lindex $Total_NumOrbs $ct_AN]
+	set fnan [lindex $FNAN $ct_AN]
+	for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+	  set Gh_AN [lindex $natn $ct_AN $h_AN]
+	  set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+	  for {set i 0} {$i < $TNO1} {incr i} {
+	    bin2bin $fp double $TNO2 $format $fp_new ;#iHk
+	  }
+	}
+      }
+    }
+  }
+  for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+    set TNO1 [lindex $Total_NumOrbs $ct_AN]
+    set fnan [lindex $FNAN $ct_AN]
+    for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+      set Gh_AN [lindex $natn $ct_AN $h_AN]
+      set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+      for {set i 0} {$i < $TNO1} {incr i} {
+	bin2bin $fp double $TNO2 $format $fp_new ;#OLP
+      }
+    }
+  }
+  for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+    set TNO1 [lindex $Total_NumOrbs $ct_AN]
+    set fnan [lindex $FNAN $ct_AN]
+    for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+      set Gh_AN [lindex $natn $ct_AN $h_AN]
+      set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+      for {set i 0} {$i < $TNO1} {incr i} {
+	bin2bin $fp double $TNO2 $format $fp_new ;#OLPpox
+      }
+    }
+  }
+  for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+    set TNO1 [lindex $Total_NumOrbs $ct_AN]
+    set fnan [lindex $FNAN $ct_AN]
+    for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+      set Gh_AN [lindex $natn $ct_AN $h_AN]
+      set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+      for {set i 0} {$i < $TNO1} {incr i} {
+	bin2bin $fp double $TNO2 $format $fp_new ;#OLPpoy
+      }
+    }
+  }
+  for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+    set TNO1 [lindex $Total_NumOrbs $ct_AN]
+    set fnan [lindex $FNAN $ct_AN]
+    for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+      set Gh_AN [lindex $natn $ct_AN $h_AN]
+      set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+      for {set i 0} {$i < $TNO1} {incr i} {
+	bin2bin $fp double $TNO2 $format $fp_new ;#OLPpoz
+      }
+    }
+  }
+  for {set spin 0} {$spin <= $SpinP_switch} {incr spin} {
+    for {set ct_AN 0} {$ct_AN < $atomnum} {incr ct_AN} {
+      set TNO1 [lindex $Total_NumOrbs $ct_AN]
+      set fnan [lindex $FNAN $ct_AN]
+      for {set h_AN 0} {$h_AN <= $fnan} {incr h_AN} {
+	set Gh_AN [lindex $natn $ct_AN $h_AN]
+	set TNO2 [lindex $Total_NumOrbs [expr {$Gh_AN - 1}]]
+	for {set i 0} {$i < $TNO1} {incr i} {
+	  bin2bin $fp double $TNO2 $format $fp_new ;#DM
+	}
+      }
+    }
+  }
+  bin2bin $fp int 1 $format $fp_new ;#Solver
+  bin2bin $fp double 10 $format $fp_new
+  bin2bin $fp int 1 $format $fp_new
+  set num_lines $val
+  set MAX_LINE_SIZE 256
+  for {set i 0} {$i < $num_lines} {incr i} {
+    bin2bin $fp char $MAX_LINE_SIZE $format $fp_new ;#strg
+  }
+}
+proc b2b {} {
+  global dir path
+  set path [tk_getOpenFile -initialdir $dir -filetypes {{{SCFOUT file} {.scfout*}}}]
+  if {$path ne ""} {
+    set dir [file dirname $path]
+  } else {
+    return
+  }
+  if {[b2bMain $path l]==1} {
+    file delete ${path}_b
+    b2bMain $path b
+    tk_messageBox -type ok -message "The byte order (endianness) converts from big-endian format to litle-endian format.\n\n${path}_l is made." -title "'Big' to 'Little'"
+  } else {
+    tk_messageBox -type ok -message "The byte order (endianness) converts from little-endian format to big-endian format.\n\n${path}_b is made." -title "'Little' to 'Big'"
   }
 }
 proc saveSetting {} {
-  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics
+  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor
   set fprc [open $rootPath/.omxtoolrc w]
   puts $fprc "set yraMax {$yraMax}"
   puts $fprc "set yraMin {$yraMin}"
@@ -465,6 +642,9 @@ proc saveSetting {} {
   puts $fprc "set bandgnuEnhanced {$bandgnuEnhanced}"
   puts $fprc "set ratio {$ratio}"
   puts $fprc "set ytics {$ytics}"
+  puts $fprc "set BANDDAT1Color {$BANDDAT1Color}"
+  puts $fprc "set BANDDAT2Color {$BANDDAT2Color}"
+  puts $fprc "set branchColor {$branchColor}"
   close $fprc
 }
 proc openOption {} {
@@ -484,12 +664,6 @@ proc openOption {} {
   frame .tOption.fYlabel
   label .tOption.fYlabel.l -text Ylabel
   entry .tOption.fYlabel.e -textvariable ylabel
-  frame .tOption.fRatio
-  label .tOption.fRatio.l -text Ratio
-  entry .tOption.fRatio.e -textvariable ratio
-  frame .tOption.fYtics
-  label .tOption.fYtics.l -text Ytics
-  entry .tOption.fYtics.e -textvariable ytics
   button .tOption.bCommon -text Common -command {
     toplevel .tOption.tCommon
     wm title .tOption.tCommon Common
@@ -526,7 +700,7 @@ proc openOption {} {
     label .tOption.tbandgnu.fPath.l -text "Path of 'bandgnu'"
     entry .tOption.tbandgnu.fPath.e -textvariable bandgnuPath -width 100
     button .tOption.tbandgnu.fPath.b -text Select -command {
-      set tmp [tk_getOpenFile -initialdir $dir -filetypes {{{source file} {bandgnu*.c}}} -title "Select a source file of 'bandgnu'" -parent .tOption.tbandgnu]
+      set tmp [tk_getOpenFile -initialdir $dir -filetypes {{{source file} {bandgnu*.c}}} -title "Select a source file of 'bandgnu'" -parent .tOption]
       if {$tmp ne ""} {
 	set bandgnuPath $tmp
       }
@@ -539,7 +713,7 @@ proc openOption {} {
     label .tOption.tbandgnu.fColor.l -text "Background Color"
     entry .tOption.tbandgnu.fColor.e -textvariable bandgnuColor -width 10
     button .tOption.tbandgnu.fColor.b -text Select -command {
-      set tmp [tk_chooseColor -initialcolor $bandgnuColor -parent .tOption.tbandgnu]
+      set tmp [tk_chooseColor -initialcolor $bandgnuColor -parent .tOption]
       if {$tmp ne ""} {
 	set bandgnuColor $tmp
       }
@@ -595,17 +769,116 @@ proc openOption {} {
     set bandgnuEnhanced on
     set ratio 1
     set ytics 1
+    set BANDDAT1Color #ff0000
+    set BANDDAT2Color #00ff00
+    set branchColor #0000ff
   }
   button .tOption.bClose -text Close -command {
     destroy .tOption
     saveSetting
   }
-  pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
+  frame .tOption.fRatio
+  label .tOption.fRatio.l -text Ratio
+  entry .tOption.fRatio.e -textvariable ratio
+  frame .tOption.fYtics
+  label .tOption.fYtics.l -text Ytics
+  entry .tOption.fYtics.e -textvariable ytics
+  frame .tOption.fBANDDAT1Color
+  label .tOption.fBANDDAT1Color.l -text "lc (for BANDDAT1)"
+  entry .tOption.fBANDDAT1Color.e -textvariable BANDDAT1Color -width 10
+  button .tOption.fBANDDAT1Color.b -text Select -command {
+    set tmp [tk_chooseColor -initialcolor $BANDDAT1Color -parent .tOption]
+    if {$tmp ne ""} {
+      set BANDDAT1Color $tmp
+    }
+  }
+  frame .tOption.fBANDDAT2Color
+  label .tOption.fBANDDAT2Color.l -text "lc (for BANDDAT2)"
+  entry .tOption.fBANDDAT2Color.e -textvariable BANDDAT2Color -width 10
+  button .tOption.fBANDDAT2Color.b -text Select -command {
+    set tmp [tk_chooseColor -initialcolor $BANDDAT2Color -parent .tOption]
+    if {$tmp ne ""} {
+      set BANDDAT2Color $tmp
+    }
+  }
+  frame .tOption.fBranchColor
+  label .tOption.fBranchColor.l -text "lc (for branch)"
+  entry .tOption.fBranchColor.e -textvariable branchColor -width 10
+  button .tOption.fBranchColor.b -text Select -command {
+    set tmp [tk_chooseColor -initialcolor $branchColor -parent .tOption]
+    if {$tmp ne ""} {
+      set branchColor $tmp
+    }
+  }
+  pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.fBANDDAT1Color .tOption.fBANDDAT2Color .tOption.fBranchColor .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
   pack .tOption.fYra.l .tOption.fYra.ll .tOption.fYra.eMin .tOption.fYra.lc .tOption.fYra.eMax .tOption.fYra.lr -side left
   pack .tOption.fFontSize.l .tOption.fFontSize.e -side left
   pack .tOption.fYlabel.l .tOption.fYlabel.e -side left
   pack .tOption.fRatio.l .tOption.fRatio.e -side left
   pack .tOption.fYtics.l .tOption.fYtics.e -side left
+  pack .tOption.fBANDDAT1Color.l .tOption.fBANDDAT1Color.e .tOption.fBANDDAT1Color.b -side left
+  pack .tOption.fBANDDAT2Color.l .tOption.fBANDDAT2Color.e .tOption.fBANDDAT2Color.b -side left
+  pack .tOption.fBranchColor.l .tOption.fBranchColor.e .tOption.fBranchColor.b -side left
+}
+proc openOptionGP {} {
+  if {[winfo exists .tOptionGP]} {
+    raise .tOptionGP
+    focus .tOptionGP
+    return
+  }
+  toplevel .tOptionGP
+  wm title .tOptionGP Option
+  frame .tOptionGP.fFontSize
+  label .tOptionGP.fFontSize.l -text "Font Size"
+  entry .tOptionGP.fFontSize.e -textvariable fontSize
+  frame .tOptionGP.fYlabel
+  label .tOptionGP.fYlabel.l -text Ylabel
+  entry .tOptionGP.fYlabel.e -textvariable ylabel
+  button .tOptionGP.bClose -text Close -command {
+    destroy .tOptionGP
+    saveSetting
+  }
+  frame .tOptionGP.fRatio
+  label .tOptionGP.fRatio.l -text Ratio
+  entry .tOptionGP.fRatio.e -textvariable ratio
+  frame .tOptionGP.fYtics
+  label .tOptionGP.fYtics.l -text Ytics
+  entry .tOptionGP.fYtics.e -textvariable ytics
+  frame .tOptionGP.fBANDDAT1Color
+  label .tOptionGP.fBANDDAT1Color.l -text "lc (for BANDDAT1)"
+  entry .tOptionGP.fBANDDAT1Color.e -textvariable BANDDAT1Color -width 10
+  button .tOptionGP.fBANDDAT1Color.b -text Select -command {
+    set tmp [tk_chooseColor -initialcolor $BANDDAT1Color -parent .tOptionGP]
+    if {$tmp ne ""} {
+      set BANDDAT1Color $tmp
+    }
+  }
+  frame .tOptionGP.fBANDDAT2Color
+  label .tOptionGP.fBANDDAT2Color.l -text "lc (for BANDDAT2)"
+  entry .tOptionGP.fBANDDAT2Color.e -textvariable BANDDAT2Color -width 10
+  button .tOptionGP.fBANDDAT2Color.b -text Select -command {
+    set tmp [tk_chooseColor -initialcolor $BANDDAT2Color -parent .tOptionGP]
+    if {$tmp ne ""} {
+      set BANDDAT2Color $tmp
+    }
+  }
+  frame .tOptionGP.fBranchColor
+  label .tOptionGP.fBranchColor.l -text "lc (for branch)"
+  entry .tOptionGP.fBranchColor.e -textvariable branchColor -width 10
+  button .tOptionGP.fBranchColor.b -text Select -command {
+    set tmp [tk_chooseColor -initialcolor $branchColor -parent .tOptionGP]
+    if {$tmp ne ""} {
+      set branchColor $tmp
+    }
+  }
+  pack .tOptionGP.fYtics .tOptionGP.fFontSize .tOptionGP.fYlabel .tOptionGP.fRatio .tOptionGP.fBANDDAT1Color .tOptionGP.fBANDDAT2Color .tOptionGP.fBranchColor .tOptionGP.bClose
+  pack .tOptionGP.fFontSize.l .tOptionGP.fFontSize.e -side left
+  pack .tOptionGP.fYlabel.l .tOptionGP.fYlabel.e -side left
+  pack .tOptionGP.fRatio.l .tOptionGP.fRatio.e -side left
+  pack .tOptionGP.fYtics.l .tOptionGP.fYtics.e -side left
+  pack .tOptionGP.fBANDDAT1Color.l .tOptionGP.fBANDDAT1Color.e .tOptionGP.fBANDDAT1Color.b -side left
+  pack .tOptionGP.fBANDDAT2Color.l .tOptionGP.fBANDDAT2Color.e .tOptionGP.fBANDDAT2Color.b -side left
+  pack .tOptionGP.fBranchColor.l .tOptionGP.fBranchColor.e .tOptionGP.fBranchColor.b -side left
 }
 set openmx_tcl [file normalize $argv0]
 set rootPath [file dirname $openmx_tcl]
@@ -625,6 +898,9 @@ set bandgnuExport "postscript eps"
 set bandgnuEnhanced on
 set ratio 1
 set ytics 1
+set BANDDAT1Color #ff0000
+set BANDDAT2Color #00ff00
+set branchColor #0000ff
 if [file exists $rootPath/.omxtoolrc] {
   source $rootPath/.omxtoolrc
 } else {
@@ -641,9 +917,12 @@ wm title . "OMXTool@$HOSTNAME"
 label .l0 -textvariable buff
 label .l1 -textvariable buff1 -justify left
 button .bband -text Band -command band
+if {[info patchlevel]>=8.5} {
+}
 button .bOption -text Option -command openOption
 button .bexit -text Exit -command exit
-pack .l0 .l1 .bband .bOption .bexit -expand 1 -fill both
+button .bbin2bin -text bin2bin -command b2b
+pack .l0 .l1 .bband .bbin2bin .bOption .bexit -expand 1 -fill both
 while 1 {
   set buff [status]
   set buff1 [status1]
