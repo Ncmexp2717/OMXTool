@@ -31,6 +31,7 @@ exec tclsh "$0" ${1+"$@"}
 #@(#)                 (renaming 'OMXTool.tcl' 'omxtool')
 #@(#)    2017/03/04 Ver. 1.4.3 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/09 Ver. 1.5 Released by Naoya Yamaguchi.
+#@(#)    2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -475,7 +476,7 @@ proc bin2bin {fp typep num format_src fp_new} {
 proc b2bMain {fname format} {
   global val
   if {[info patchlevel]<8.5} {
-    puts stderr "Error: Versions earlier than tclsh8.5 are incompatible."
+    puts stderr "Error: 'bin2bin' requires 'tclsh8.5' or later."
     exit 1
   }
   if {$format eq "b"} {
@@ -917,12 +918,14 @@ wm title . "OMXTool@$HOSTNAME"
 label .l0 -textvariable buff
 label .l1 -textvariable buff1 -justify left
 button .bband -text Band -command band
-if {[info patchlevel]>=8.5} {
-}
 button .bOption -text Option -command openOption
 button .bexit -text Exit -command exit
-button .bbin2bin -text bin2bin -command b2b
-pack .l0 .l1 .bband .bbin2bin .bOption .bexit -expand 1 -fill both
+if {[info patchlevel]>=8.5} {
+  button .bbin2bin -text bin2bin -command b2b
+  pack .l0 .l1 .bband .bbin2bin .bOption .bexit -expand 1 -fill both
+} else {
+  pack .l0 .l1 .bband .bOption .bexit -expand 1 -fill both
+}
 while 1 {
   set buff [status]
   set buff1 [status1]
