@@ -38,6 +38,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 
 ### Using OMXTool, you can
 - draw figures of band dispersions.
+- convert the byte order (endianness). (`tclsh8.5` or later is required.)
 
 ## Requirements
 - `wish` (Windowing Shell) and `gnuplot` are required.
