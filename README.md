@@ -30,6 +30,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
   (renaming 'OMXTool.tcl' 'omxtool')
 - 2017/03/04 Ver. 1.4.3 Modified by Naoya Yamaguchi.
 - 2017/03/09 Ver. 1.5 Released by Naoya Yamaguchi.
+- 2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
 
 ## Description:
    This script provides graphical utilities for OpenMX.
