@@ -33,6 +33,7 @@ exec tclsh "$0" ${1+"$@"}
 #@(#)    2017/03/09 Ver. 1.5 Released by Naoya Yamaguchi.
 #@(#)    2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.2 Modified by Naoya Yamaguchi.
+#@(#)    2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -456,13 +457,13 @@ proc band {} {
 	}
 	"
 	frame .t$nwin.fBranch
-	radiobutton .t$nwin.fBranch.rbBANDDAT1 -text BANDDAT1 -value 1 -variable branchMode -command "
+	radiobutton .t$nwin.fBranch.rbBANDDAT1 -text BANDDAT1 -value 1 -variable branchMode($nwin) -command "
 	.t$nwin.lfBranch.sb configure -from $lmin(1) -to $lmax(1) -increment 1
 	.t$nwin.lfBranch.l configure -text \"($lmin(1)-$lmax(1))\"
 	"
 	.t$nwin.fBranch.rbBANDDAT1 select
 	if {$mspin} {
-	  radiobutton .t$nwin.fBranch.rbBANDDAT2 -text BANDDAT2 -value 2 -variable branchMode -command "
+	  radiobutton .t$nwin.fBranch.rbBANDDAT2 -text BANDDAT2 -value 2 -variable branchMode($nwin) -command "
 	  .t$nwin.lfBranch.sb configure -from $lmin(2) -to $lmax(2) -increment 1
 	  .t$nwin.lfBranch.l configure -text \"($lmin(2)-$lmax(2))\"
 	  "
@@ -474,10 +475,10 @@ proc band {} {
 	labelframe .t$nwin.lfBranch -labelwidget .t$nwin.fBranch
 	spinbox .t$nwin.lfBranch.sb -from $lmin(1) -to $lmax(1) -increment 1
 	button .t$nwin.lfBranch.b -text Branch -command "
-	if {\[.t$nwin.lfBranch.sb get\]>\$lmax(\$branchMode)} {
-	.t$nwin.lfBranch.sb set \$lmax(\$branchMode)
-	} elseif {\[.t$nwin.lfBranch.sb get\]<\$lmin(\$branchMode)} {
-	.t$nwin.lfBranch.sb set \$lmin(\$branchMode)
+	if {\[.t$nwin.lfBranch.sb get\]>\$lmax(\$branchMode($nwin))} {
+	.t$nwin.lfBranch.sb set \$lmax(\$branchMode($nwin))
+	} elseif {\[.t$nwin.lfBranch.sb get\]<\$lmin(\$branchMode($nwin))} {
+	.t$nwin.lfBranch.sb set \$lmin(\$branchMode($nwin))
 	}
 	puts $p \"  se size ratio \$ratio\"
 	puts $p \"  se yl '\$ylabel'\"
@@ -491,7 +492,7 @@ proc band {} {
 	lappend lineStyle \"lc '\$branchColor'\"
 	}
 	}
-	puts $p \"  rep '$path.BANDDAT\$branchMode' in \[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode)+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode)+2)*$nkpath-2}\] \[join \$lineStyle\]\"
+	puts $p \"  rep '$path.BANDDAT\$branchMode($nwin)' in \[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode($nwin))+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode($nwin))+2)*$nkpath-2}\] \[join \$lineStyle\]\"
 	"
 	label .t$nwin.lfBranch.l -text "($lmin(1)-$lmax(1))"
 	if {$bandgnuPreview} {
