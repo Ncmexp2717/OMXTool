@@ -32,6 +32,7 @@ exec tclsh "$0" ${1+"$@"}
 #@(#)    2017/03/04 Ver. 1.4.3 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/09 Ver. 1.5 Released by Naoya Yamaguchi.
 #@(#)    2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
+#@(#)    2017/03/13 Ver. 1.5.2 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -121,8 +122,10 @@ proc bandgnu {argc argv} {
     }
     set ymin [expr {$Emin/$Unit+$ChemP}]
     set ymax [expr {$Emax/$Unit+$ChemP}]
-    set lmin $maxneig
-    set lmax 1
+    for {set spin 0} {$spin<=$mspin} {incr spin} {
+      set lmin($spin) $maxneig
+      set lmax($spin) 1
+    }
   } else {
     set ymin 100000.0
     set ymax -100000.0
@@ -143,19 +146,21 @@ proc bandgnu {argc argv} {
 	for {set i 1} {$i<=3} {incr i} {
 	  set vk($i) $v($i)
 	}
-	if {$i_perpath==1} {
-	  if {$ik==1} {
-	    set tmp 0.0
-	    lappend klinel 0.0
+	if {!$spin} {
+	  if {$i_perpath==1} {
+	    if {$ik==1} {
+	      set tmp 0.0
+	      lappend klinel 0.0
+	    } else {
+	      lappend klinel $tmp
+	    }
 	  } else {
+	    set vkmovk1 [expr {$vk(1)-$ovk($spin\)\(1)}]
+	    set vkmovk2 [expr {$vk(2)-$ovk($spin\)\(2)}]
+	    set vkmovk3 [expr {$vk(3)-$ovk($spin\)\(3)}]
+	    set tmp [expr {$tmp+sqrt($vkmovk1*$vkmovk1+$vkmovk2*$vkmovk2+$vkmovk3*$vkmovk3)}]
 	    lappend klinel $tmp
 	  }
-	} else {
-	  set vkmovk1 [expr {$vk(1)-$ovk($spin\)\(1)}]
-	  set vkmovk2 [expr {$vk(2)-$ovk($spin\)\(2)}]
-	  set vkmovk3 [expr {$vk(3)-$ovk($spin\)\(3)}]
-	  set tmp [expr {$tmp+sqrt($vkmovk1*$vkmovk1+$vkmovk2*$vkmovk2+$vkmovk3*$vkmovk3)}]
-	  lappend klinel $tmp
 	}
 	for {set i 1} {$i<=3} {incr i} {
 	  set ovk($spin)($i) $vk($i)
@@ -165,18 +170,18 @@ proc bandgnu {argc argv} {
 	}
 	gets $fp data
 	if {$argc==3} {
-	  for {set lminm1 [expr {$lmin-1}]} {$lminm1>=0} {incr lminm1 -1} {
+	  for {set lminm1 [expr {$lmin($spin)-1}]} {$lminm1>=0} {incr lminm1 -1} {
 	    if {[lindex $data $lminm1]<$ymin} {
-	      if {$lmin>$lminm1+2} {
-		set lmin [expr {$lminm1+2}]
+	      if {$lmin($spin)>$lminm1+2} {
+		set lmin($spin) [expr {$lminm1+2}]
 	      }
 	      break
 	    }
 	  }
-	  for {set lmaxm1 [expr {$lmax-1}]} {$lmaxm1<$meig} {incr lmaxm1} {
+	  for {set lmaxm1 [expr {$lmax($spin)-1}]} {$lmaxm1<$meig} {incr lmaxm1} {
 	    if {[lindex $data $lmaxm1]>$ymax} {
-	      if {$lmax<$lmaxm1} {
-		set lmax $lmaxm1
+	      if {$lmax($spin)<$lmaxm1} {
+		set lmax($spin) $lmaxm1
 	      }
 	      break
 	    }
@@ -198,8 +203,10 @@ proc bandgnu {argc argv} {
     }
   }
   if {$argc!=3} {
-    set lmin 1
-    set lmax $meig
+    for {set spin 0} {$spin<=$mspin} {incr spin} {
+      set lmin($spin) 1
+      set lmax($spin) $meig
+    }
   }
   set ymax1 [expr {($ymax-$ymin)*1.1+$ymin}]
   set ymin1 [expr {-($ymax-$ymin)*1.1+$ymax}]
@@ -222,7 +229,7 @@ proc bandgnu {argc argv} {
       set index [expr {$index+$n_perpath($ik)}]
       puts $fp \n
     }
-    for {set l $lmin} {$l<=$lmax} {incr l} {
+    for {set l $lmin($spin)} {$l<=$lmax($spin)} {incr l} {
       set i_perpath 1
       set ik 1
       foreach kl $klinel EI $EIGENl($spin\)\($l) {
@@ -268,17 +275,21 @@ proc bandgnu {argc argv} {
   }
   puts $fp [format "\"%s\" %lf)" $kname($nkpath\)\(2) [lindex $klinel end]]
   puts -nonewline $fp "plot \"$fnamedat1(0)\""
-  if {$mspin==1} {
+  if {$mspin} {
     puts $fp ", \"$fnamedat1(1)\""
   } else {
     puts $fp ""
   }
   puts $fp "pause -1"
   close $fp
-  return "$lmin $lmax $nkpath"
+  if {$mspin} {
+    return "$nkpath $mspin $lmin(0) $lmax(0) $lmin(1) $lmax(1)"
+  } else {
+    return "$nkpath $mspin $lmin(0) $lmax(0)"
+  }
 }
 proc band {} {
-  global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor
+  global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType gnuplotVersion BANDDAT1Width BANDDAT2Width branchWidth LCMode lmin lmax branchMode
   if {$bandgnuMode eq "C"} {
     if {$bandgnuPath eq ""} {
       set tmp [tk_getOpenFile -initialdir $dir -filetypes {{{source file} {bandgnu*.c}}} -title "Select a source file of 'bandgnu'"]
@@ -313,9 +324,14 @@ proc band {} {
     cd $dir
     set path [file tail $path]
     set bandgnuList [bandgnu 3 "$path $yraMin $yraMax"]
-    set lmin [lindex $bandgnuList 0]
-    set lmax [lindex $bandgnuList 1]
-    set nkpath [lindex $bandgnuList 2]
+    set nkpath [lindex $bandgnuList 0]
+    set mspin [lindex $bandgnuList 1]
+    set lmin(1) [lindex $bandgnuList 2]
+    set lmax(1) [lindex $bandgnuList 3]
+    if {$mspin} {
+      set lmin(2) [lindex $bandgnuList 4]
+      set lmax(2) [lindex $bandgnuList 5]
+    }
   }
   set path [file rootname $path]
   set gpath $path.GNUBAND
@@ -412,26 +428,72 @@ proc band {} {
 	pack .t$nwin.lgap
       } else {
 	frame .t$nwin.fGnuplot
-	button .t$nwin.fGnuplot.bGnuplot -text Gnuplot -command "
+	button .t$nwin.fGnuplot.bGnuplot -text "Gnuplot (Reset)" -default active -command "
 	puts $p \"  se size ratio \$ratio\"
 	puts $p \"  se yl '\$ylabel'\"
 	puts $p \"  se yti \$ytics\"
-	puts $p \"  plot '$path.BANDDAT1' lt -1 lc rgb '\$BANDDAT1Color'\"
+	set lineStyle \"lt \$BANDDAT1Type\"
+	lappend lineStyle \"lw \$BANDDAT1Width\"
+	if {$gnuplotVersion>=4.2} {
+	if {\$LCMode==2} {
+	lappend lineStyle \"lc rgb '\$BANDDAT1RGBColor'\"
+	} elseif {\$LCMode==1} {
+	lappend lineStyle \"lc '\$BANDDAT1Color'\"
+	}
+	}
+	puts $p \"  plot '$path.BANDDAT1' \[join \$lineStyle\]\"
+	if {$mspin} {
+	set lineStyle \"lt \$BANDDAT2Type\"
+	lappend lineStyle \"lw \$BANDDAT2Width\"
+	if {$gnuplotVersion>=4.2} {
+	if {\$LCMode==2} {
+	lappend lineStyle \"lc rgb '\$BANDDAT2RGBColor'\"
+	} elseif {\$LCMode==1} {
+	lappend lineStyle \"lc '\$BANDDAT2Color'\"
+	}
+	}
+	puts $p \"  rep '$path.BANDDAT2' \[join \$lineStyle\]\"
+	}
 	"
 	frame .t$nwin.fBranch
-	spinbox .t$nwin.fBranch.sb -from $lmin -to $lmax -increment 1
-	button .t$nwin.fBranch.b -text Branch -command "
-	if {\[.t$nwin.fBranch.sb get\]>$lmax} {
-	.t$nwin.fBranch.sb set $lmax
-	} elseif {\[.t$nwin.fBranch.sb get\]<$lmin} {
-	.t$nwin.fBranch.sb set $lmin
+	radiobutton .t$nwin.fBranch.rbBANDDAT1 -text BANDDAT1 -value 1 -variable branchMode -command "
+	.t$nwin.lfBranch.sb configure -from $lmin(1) -to $lmax(1) -increment 1
+	.t$nwin.lfBranch.l configure -text \"($lmin(1)-$lmax(1))\"
+	"
+	.t$nwin.fBranch.rbBANDDAT1 select
+	if {$mspin} {
+	  radiobutton .t$nwin.fBranch.rbBANDDAT2 -text BANDDAT2 -value 2 -variable branchMode -command "
+	  .t$nwin.lfBranch.sb configure -from $lmin(2) -to $lmax(2) -increment 1
+	  .t$nwin.lfBranch.l configure -text \"($lmin(2)-$lmax(2))\"
+	  "
+	}
+	pack .t$nwin.fBranch.rbBANDDAT1 -side left
+	if {$mspin} {
+	  pack .t$nwin.fBranch.rbBANDDAT2 -side left
+	}
+	labelframe .t$nwin.lfBranch -labelwidget .t$nwin.fBranch
+	spinbox .t$nwin.lfBranch.sb -from $lmin(1) -to $lmax(1) -increment 1
+	button .t$nwin.lfBranch.b -text Branch -command "
+	if {\[.t$nwin.lfBranch.sb get\]>\$lmax(\$branchMode)} {
+	.t$nwin.lfBranch.sb set \$lmax(\$branchMode)
+	} elseif {\[.t$nwin.lfBranch.sb get\]<\$lmin(\$branchMode)} {
+	.t$nwin.lfBranch.sb set \$lmin(\$branchMode)
 	}
 	puts $p \"  se size ratio \$ratio\"
 	puts $p \"  se yl '\$ylabel'\"
 	puts $p \"  se yti \$ytics\"
-	puts $p \"  replot '$path.BANDDAT1' in \[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.fBranch.sb get\]-$lmin+2)*$nkpath-2}\] lt 1 lw 3 lc rgb '\$branchColor'\"
+	set lineStyle \"lt \$branchType\"
+	lappend lineStyle \"lw \$branchWidth\"
+	if {$gnuplotVersion>=4.2} {
+	if {\$LCMode==2} {
+	lappend lineStyle \"lc rgb '\$branchRGBColor'\"
+	} elseif {\$LCMode==1} {
+	lappend lineStyle \"lc '\$branchColor'\"
+	}
+	}
+	puts $p \"  rep '$path.BANDDAT\$branchMode' in \[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode)+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode)+2)*$nkpath-2}\] \[join \$lineStyle\]\"
 	"
-	label .t$nwin.fBranch.l -text "($lmin-$lmax)"
+	label .t$nwin.lfBranch.l -text "($lmin(1)-$lmax(1))"
 	if {$bandgnuPreview} {
 	  checkbutton .t$nwin.fGnuplot.cbBackground -text Background -variable BGColor -offvalue #ffffff -onvalue $bandgnuColor -command ".t$nwin.c configure -bg \$BGColor"
 	  .t$nwin.fGnuplot.cbBackground select
@@ -443,8 +505,8 @@ proc band {} {
 	} else {
 	  pack .t$nwin.fGnuplot.bGnuplot
 	}
-	pack .t$nwin.fBranch
-	pack .t$nwin.fBranch.sb .t$nwin.fBranch.l .t$nwin.fBranch.b -side left
+	pack .t$nwin.lfBranch
+	pack .t$nwin.lfBranch.sb .t$nwin.lfBranch.l .t$nwin.lfBranch.b -side left
       }
       pack .t$nwin.fCommon
       pack .t$nwin.fCommon.bExport .t$nwin.fCommon.bOption .t$nwin.fCommon.bexit -side left
@@ -627,7 +689,7 @@ proc b2b {} {
   }
 }
 proc saveSetting {} {
-  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor
+  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType BANDDAT1Width BANDDAT2Width branchWidth LCMode BANDDAT1RGBColor BANDDAT2RGBColor branchRGBColor
   set fprc [open $rootPath/.omxtoolrc w]
   puts $fprc "set yraMax {$yraMax}"
   puts $fprc "set yraMin {$yraMin}"
@@ -646,9 +708,20 @@ proc saveSetting {} {
   puts $fprc "set BANDDAT1Color {$BANDDAT1Color}"
   puts $fprc "set BANDDAT2Color {$BANDDAT2Color}"
   puts $fprc "set branchColor {$branchColor}"
+  puts $fprc "set BANDDAT1Type {$BANDDAT1Type}"
+  puts $fprc "set BANDDAT2Type {$BANDDAT2Type}"
+  puts $fprc "set branchType {$branchType}"
+  puts $fprc "set BANDDAT1Width {$BANDDAT1Width}"
+  puts $fprc "set BANDDAT2Width {$BANDDAT2Width}"
+  puts $fprc "set branchWidth {$branchWidth}"
+  puts $fprc "set LCMode {$LCMode}"
+  puts $fprc "set BANDDAT1RGBColor {$BANDDAT1RGBColor}"
+  puts $fprc "set BANDDAT2RGBColor {$BANDDAT2RGBColor}"
+  puts $fprc "set branchRGBColor {$branchRGBColor}"
   close $fprc
 }
 proc openOption {} {
+  global gnuplotVersion LCMode
   toplevel .tOption
   wm title .tOption Option
   grab set .tOption
@@ -708,12 +781,12 @@ proc openOption {} {
     }
     frame .tOption.tbandgnu.fAP
     label .tOption.tbandgnu.fAP.l -text "Automatic Export"
-    radiobutton .tOption.tbandgnu.fAP.rbOn -text On -variable bandgnuAE -value on
-    radiobutton .tOption.tbandgnu.fAP.rbOff -text Off -variable bandgnuAE -value off
+    radiobutton .tOption.tbandgnu.fAP.rbOn -text "On" -variable bandgnuAE -value on
+    radiobutton .tOption.tbandgnu.fAP.rbOff -text "Off" -variable bandgnuAE -value off
     frame .tOption.tbandgnu.fColor
     label .tOption.tbandgnu.fColor.l -text "Background Color"
     entry .tOption.tbandgnu.fColor.e -textvariable bandgnuColor -width 10
-    button .tOption.tbandgnu.fColor.b -text Select -command {
+    button .tOption.tbandgnu.fColor.b -text "Select" -command {
       set tmp [tk_chooseColor -initialcolor $bandgnuColor -parent .tOption]
       if {$tmp ne ""} {
 	set bandgnuColor $tmp
@@ -734,7 +807,9 @@ proc openOption {} {
       listbox .tOption.tbandgnu.tExport.lfExport.lb
       .tOption.tbandgnu.tExport.lfExport.lb insert end "postscript eps" pdf png jpeg svg emf gif
       button .tOption.tbandgnu.tExport.bClose -text Close -command {
-	set bandgnuExport [.tOption.tbandgnu.tExport.lfExport.lb get [.tOption.tbandgnu.tExport.lfExport.lb curselection]]
+	if {[.tOption.tbandgnu.tExport.lfExport.lb curselection] ne ""} {
+	  set bandgnuExport [.tOption.tbandgnu.tExport.lfExport.lb get [.tOption.tbandgnu.tExport.lfExport.lb curselection]]
+	}
 	destroy .tOption.tbandgnu.tExport
 	grab set .tOption.tbandgnu
       }
@@ -770,9 +845,19 @@ proc openOption {} {
     set bandgnuEnhanced on
     set ratio 1
     set ytics 1
-    set BANDDAT1Color #ff0000
-    set BANDDAT2Color #00ff00
-    set branchColor #0000ff
+    set BANDDAT1Color 1
+    set BANDDAT2Color 2
+    set branchColor 3
+    set BANDDAT1Type 1
+    set BANDDAT2Type 2
+    set branchType 3
+    set BANDDAT1Width 1
+    set BANDDAT2Width 1
+    set branchWidth 3
+    set LCMode 2
+    set BANDDAT1RGBColor #ff0000
+    set BANDDAT2RGBColor #00ff00
+    set branchRGBColor #0000ff
   }
   button .tOption.bClose -text Close -command {
     destroy .tOption
@@ -784,44 +869,177 @@ proc openOption {} {
   frame .tOption.fYtics
   label .tOption.fYtics.l -text Ytics
   entry .tOption.fYtics.e -textvariable ytics
-  frame .tOption.fBANDDAT1Color
-  label .tOption.fBANDDAT1Color.l -text "lc (for BANDDAT1)"
-  entry .tOption.fBANDDAT1Color.e -textvariable BANDDAT1Color -width 10
-  button .tOption.fBANDDAT1Color.b -text Select -command {
-    set tmp [tk_chooseColor -initialcolor $BANDDAT1Color -parent .tOption]
-    if {$tmp ne ""} {
-      set BANDDAT1Color $tmp
+  if {$gnuplotVersion>=4.2} {
+    frame .tOption.fLinecolor
+    label .tOption.fLinecolor.l -text linecolor
+    radiobutton .tOption.fLinecolor.rbOff -text Off -value 0 -variable LCMode -command {
+      .tOption.lfLinecolor.fBANDDAT1Color.e configure -state disabled
+      .tOption.lfLinecolor.fBANDDAT2Color.e configure -state disabled
+      .tOption.lfLinecolor.fBranchColor.e configure -state disabled
+      if {[winfo exists .tOption.lfLinecolor.fBANDDAT1Color.b]} {
+	.tOption.lfLinecolor.fBANDDAT1Color.b configure -state disabled
+      }
+      if {[winfo exists .tOption.lfLinecolor.fBANDDAT2Color.b]} {
+	.tOption.lfLinecolor.fBANDDAT2Color.b configure -state disabled
+      }
+      if {[winfo exists .tOption.lfLinecolor.fBranchColor.b]} {
+	.tOption.lfLinecolor.fBranchColor.b configure -state disabled
+      }
+    }
+    radiobutton .tOption.fLinecolor.rbOn -text On -value 1 -variable LCMode -command {
+      .tOption.lfLinecolor.fBANDDAT1Color.e configure -textvariable BANDDAT1Color
+      .tOption.lfLinecolor.fBANDDAT2Color.e configure -textvariable BANDDAT2Color
+      .tOption.lfLinecolor.fBranchColor.e configure -textvariable branchColor
+      .tOption.lfLinecolor.fBANDDAT1Color.e configure -state normal
+      .tOption.lfLinecolor.fBANDDAT2Color.e configure -state normal
+      .tOption.lfLinecolor.fBranchColor.e configure -state normal
+      destroy .tOption.lfLinecolor.fBANDDAT1Color.b .tOption.lfLinecolor.fBANDDAT2Color.b .tOption.lfLinecolor.fBranchColor.b
+    }
+    radiobutton .tOption.fLinecolor.rbRGB -text RGB -value 2 -variable LCMode -command {
+      .tOption.lfLinecolor.fBANDDAT1Color.e configure -textvariable BANDDAT1RGBColor
+      .tOption.lfLinecolor.fBANDDAT2Color.e configure -textvariable BANDDAT2RGBColor
+      .tOption.lfLinecolor.fBranchColor.e configure -textvariable branchRGBColor
+      .tOption.lfLinecolor.fBANDDAT1Color.e configure -state normal
+      .tOption.lfLinecolor.fBANDDAT2Color.e configure -state normal
+      .tOption.lfLinecolor.fBranchColor.e configure -state normal
+      if {![winfo exists .tOption.lfLinecolor.fBANDDAT1Color.b]} {
+	button .tOption.lfLinecolor.fBANDDAT1Color.b -text Select -command {
+	  set tmp [tk_chooseColor -initialcolor $BANDDAT1RGBColor -parent .tOption]
+	  if {$tmp ne ""} {
+	    set BANDDAT1RGBColor $tmp
+	  }
+	}
+      } else {
+	.tOption.lfLinecolor.fBANDDAT1Color.b configure -state normal
+      }
+      pack .tOption.lfLinecolor.fBANDDAT1Color.b
+      if {![winfo exists .tOption.lfLinecolor.fBANDDAT2Color.b]} {
+	button .tOption.lfLinecolor.fBANDDAT2Color.b -text Select -command {
+	  set tmp [tk_chooseColor -initialcolor $BANDDAT2RGBColor -parent .tOption]
+	  if {$tmp ne ""} {
+	    set BANDDAT2RGBColor $tmp
+	  }
+	}
+      } else {
+	.tOption.lfLinecolor.fBANDDAT2Color.b configure -state normal
+      }
+      pack .tOption.lfLinecolor.fBANDDAT2Color.b
+      if {![winfo exists .tOption.lfLinecolor.fBranchColor.b]} {
+	button .tOption.lfLinecolor.fBranchColor.b -text Select -command {
+	  set tmp [tk_chooseColor -initialcolor $BranchRGBColor -parent .tOption]
+	  if {$tmp ne ""} {
+	    set BranchRGBColor $tmp
+	  }
+	}
+      } else {
+	.tOption.lfLinecolor.fBranchColor.b configure -state normal
+      }
+      pack .tOption.lfLinecolor.fBranchColor.b
+    }
+    pack .tOption.fLinecolor.l .tOption.fLinecolor.rbOff .tOption.fLinecolor.rbOn .tOption.fLinecolor.rbRGB -side left
+    labelframe .tOption.lfLinecolor -labelwidget .tOption.fLinecolor
+    frame .tOption.lfLinecolor.fBANDDAT1Color
+    label .tOption.lfLinecolor.fBANDDAT1Color.l -text "BANDDAT1"
+    if {$LCMode==2} {
+      entry .tOption.lfLinecolor.fBANDDAT1Color.e -textvariable BANDDAT1RGBColor -width 10
+    } elseif {$LCMode==1} {
+      entry .tOption.lfLinecolor.fBANDDAT1Color.e -textvariable BANDDAT1Color -width 10
+    } else {
+      entry .tOption.lfLinecolor.fBANDDAT1Color.e -width 10 -state disabled
+    }
+    button .tOption.lfLinecolor.fBANDDAT1Color.b -text Select -command {
+      set tmp [tk_chooseColor -initialcolor $BANDDAT1RGBColor -parent .tOption]
+      if {$tmp ne ""} {
+	set BANDDAT1RGBColor $tmp
+      }
+    }
+    frame .tOption.lfLinecolor.fBANDDAT2Color
+    label .tOption.lfLinecolor.fBANDDAT2Color.l -text "BANDDAT2"
+    if {$LCMode==2} {
+      entry .tOption.lfLinecolor.fBANDDAT2Color.e -textvariable BANDDAT2RGBColor -width 10
+    } elseif {$LCMode==1} {
+      entry .tOption.lfLinecolor.fBANDDAT2Color.e -textvariable BANDDAT2Color -width 10
+    } else {
+      entry .tOption.lfLinecolor.fBANDDAT2Color.e -width 10 -state disabled
+    }
+    button .tOption.lfLinecolor.fBANDDAT2Color.b -text Select -command {
+      set tmp [tk_chooseColor -initialcolor $BANDDAT2Color -parent .tOption]
+      if {$tmp ne ""} {
+	set BANDDAT2Color $tmp
+      }
+    }
+    frame .tOption.lfLinecolor.fBranchColor
+    label .tOption.lfLinecolor.fBranchColor.l -text "Branch"
+    if {$LCMode==2} {
+      entry .tOption.lfLinecolor.fBranchColor.e -textvariable branchRGBColor -width 10
+    } elseif {$LCMode==1} {
+      entry .tOption.lfLinecolor.fBranchColor.e -textvariable branchColor -width 10
+    } else {
+      entry .tOption.lfLinecolor.fBranchColor.e -width 10 -state disabled
+    }
+    button .tOption.lfLinecolor.fBranchColor.b -text Select -command {
+      set tmp [tk_chooseColor -initialcolor $branchColor -parent .tOption]
+      if {$tmp ne ""} {
+	set branchColor $tmp
+      }
     }
   }
-  frame .tOption.fBANDDAT2Color
-  label .tOption.fBANDDAT2Color.l -text "lc (for BANDDAT2)"
-  entry .tOption.fBANDDAT2Color.e -textvariable BANDDAT2Color -width 10
-  button .tOption.fBANDDAT2Color.b -text Select -command {
-    set tmp [tk_chooseColor -initialcolor $BANDDAT2Color -parent .tOption]
-    if {$tmp ne ""} {
-      set BANDDAT2Color $tmp
-    }
+  labelframe .tOption.lfLinetype -text "linetype"
+  frame .tOption.lfLinetype.fBANDDAT1Type
+  label .tOption.lfLinetype.fBANDDAT1Type.l -text "BANDDAT1"
+  entry .tOption.lfLinetype.fBANDDAT1Type.e -textvariable BANDDAT1Type -width 10
+  frame .tOption.lfLinetype.fBANDDAT2Type
+  label .tOption.lfLinetype.fBANDDAT2Type.l -text "BANDDAT2"
+  entry .tOption.lfLinetype.fBANDDAT2Type.e -textvariable BANDDAT2Type -width 10
+  frame .tOption.lfLinetype.fBranchType
+  label .tOption.lfLinetype.fBranchType.l -text "Branch"
+  entry .tOption.lfLinetype.fBranchType.e -textvariable branchType -width 10
+  labelframe .tOption.lfLinewidth -text "linewidth"
+  frame .tOption.lfLinewidth.fBANDDAT1Width
+  label .tOption.lfLinewidth.fBANDDAT1Width.l -text "BANDDAT1"
+  entry .tOption.lfLinewidth.fBANDDAT1Width.e -textvariable BANDDAT1Width -width 10
+  frame .tOption.lfLinewidth.fBANDDAT2Width
+  label .tOption.lfLinewidth.fBANDDAT2Width.l -text "BANDDAT2"
+  entry .tOption.lfLinewidth.fBANDDAT2Width.e -textvariable BANDDAT2Width -width 10
+  frame .tOption.lfLinewidth.fBranchWidth
+  label .tOption.lfLinewidth.fBranchWidth.l -text "Branch"
+  entry .tOption.lfLinewidth.fBranchWidth.e -textvariable branchWidth -width 10
+  if {$gnuplotVersion>=4.2} {
+    pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.lfLinetype .tOption.lfLinewidth .tOption.lfLinecolor .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
+  } else {
+    pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.lfLinetype .tOption.lfLinewidth .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
   }
-  frame .tOption.fBranchColor
-  label .tOption.fBranchColor.l -text "lc (for branch)"
-  entry .tOption.fBranchColor.e -textvariable branchColor -width 10
-  button .tOption.fBranchColor.b -text Select -command {
-    set tmp [tk_chooseColor -initialcolor $branchColor -parent .tOption]
-    if {$tmp ne ""} {
-      set branchColor $tmp
-    }
-  }
-  pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.fBANDDAT1Color .tOption.fBANDDAT2Color .tOption.fBranchColor .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
   pack .tOption.fYra.l .tOption.fYra.ll .tOption.fYra.eMin .tOption.fYra.lc .tOption.fYra.eMax .tOption.fYra.lr -side left
   pack .tOption.fFontSize.l .tOption.fFontSize.e -side left
   pack .tOption.fYlabel.l .tOption.fYlabel.e -side left
   pack .tOption.fRatio.l .tOption.fRatio.e -side left
   pack .tOption.fYtics.l .tOption.fYtics.e -side left
-  pack .tOption.fBANDDAT1Color.l .tOption.fBANDDAT1Color.e .tOption.fBANDDAT1Color.b -side left
-  pack .tOption.fBANDDAT2Color.l .tOption.fBANDDAT2Color.e .tOption.fBANDDAT2Color.b -side left
-  pack .tOption.fBranchColor.l .tOption.fBranchColor.e .tOption.fBranchColor.b -side left
+  if {$gnuplotVersion>=4.2} {
+    pack .tOption.lfLinecolor.fBANDDAT1Color .tOption.lfLinecolor.fBANDDAT2Color .tOption.lfLinecolor.fBranchColor
+    pack .tOption.lfLinecolor.fBANDDAT1Color.l .tOption.lfLinecolor.fBANDDAT1Color.e -side left
+    if {$LCMode==2} {
+      pack .tOption.lfLinecolor.fBANDDAT1Color.b -side left
+    }
+    pack .tOption.lfLinecolor.fBANDDAT2Color.l .tOption.lfLinecolor.fBANDDAT2Color.e -side left
+    if {$LCMode==2} {
+      pack .tOption.lfLinecolor.fBANDDAT2Color.b -side left
+    }
+    pack .tOption.lfLinecolor.fBranchColor.l .tOption.lfLinecolor.fBranchColor.e -side left
+    if {$LCMode==2} {
+      pack .tOption.lfLinecolor.fBranchColor.b -side left
+    }
+  }
+  pack .tOption.lfLinetype.fBANDDAT1Type .tOption.lfLinetype.fBANDDAT2Type .tOption.lfLinetype.fBranchType
+  pack .tOption.lfLinetype.fBANDDAT1Type.l .tOption.lfLinetype.fBANDDAT1Type.e -side left
+  pack .tOption.lfLinetype.fBANDDAT2Type.l .tOption.lfLinetype.fBANDDAT2Type.e -side left
+  pack .tOption.lfLinetype.fBranchType.l .tOption.lfLinetype.fBranchType.e -side left
+  pack .tOption.lfLinewidth.fBANDDAT1Width .tOption.lfLinewidth.fBANDDAT2Width .tOption.lfLinewidth.fBranchWidth
+  pack .tOption.lfLinewidth.fBANDDAT1Width.l .tOption.lfLinewidth.fBANDDAT1Width.e -side left
+  pack .tOption.lfLinewidth.fBANDDAT2Width.l .tOption.lfLinewidth.fBANDDAT2Width.e -side left
+  pack .tOption.lfLinewidth.fBranchWidth.l .tOption.lfLinewidth.fBranchWidth.e -side left
 }
 proc openOptionGP {} {
+  global gnuplotVersion LCMode
   if {[winfo exists .tOptionGP]} {
     raise .tOptionGP
     focus .tOptionGP
@@ -845,41 +1063,174 @@ proc openOptionGP {} {
   frame .tOptionGP.fYtics
   label .tOptionGP.fYtics.l -text Ytics
   entry .tOptionGP.fYtics.e -textvariable ytics
-  frame .tOptionGP.fBANDDAT1Color
-  label .tOptionGP.fBANDDAT1Color.l -text "lc (for BANDDAT1)"
-  entry .tOptionGP.fBANDDAT1Color.e -textvariable BANDDAT1Color -width 10
-  button .tOptionGP.fBANDDAT1Color.b -text Select -command {
-    set tmp [tk_chooseColor -initialcolor $BANDDAT1Color -parent .tOptionGP]
-    if {$tmp ne ""} {
-      set BANDDAT1Color $tmp
+  if {$gnuplotVersion>=4.2} {
+    frame .tOptionGP.fLinecolor
+    label .tOptionGP.fLinecolor.l -text linecolor
+    radiobutton .tOptionGP.fLinecolor.rbOff -text Off -value 0 -variable LCMode -command {
+      .tOptionGP.lfLinecolor.fBANDDAT1Color.e configure -state disabled
+      .tOptionGP.lfLinecolor.fBANDDAT2Color.e configure -state disabled
+      .tOptionGP.lfLinecolor.fBranchColor.e configure -state disabled
+      if {[winfo exists .tOptionGP.lfLinecolor.fBANDDAT1Color.b]} {
+	.tOptionGP.lfLinecolor.fBANDDAT1Color.b configure -state disabled
+      }
+      if {[winfo exists .tOptionGP.lfLinecolor.fBANDDAT2Color.b]} {
+	.tOptionGP.lfLinecolor.fBANDDAT2Color.b configure -state disabled
+      }
+      if {[winfo exists .tOptionGP.lfLinecolor.fBranchColor.b]} {
+	.tOptionGP.lfLinecolor.fBranchColor.b configure -state disabled
+      }
+    }
+    radiobutton .tOptionGP.fLinecolor.rbOn -text On -value 1 -variable LCMode -command {
+      .tOptionGP.lfLinecolor.fBANDDAT1Color.e configure -textvariable BANDDAT1Color
+      .tOptionGP.lfLinecolor.fBANDDAT2Color.e configure -textvariable BANDDAT2Color
+      .tOptionGP.lfLinecolor.fBranchColor.e configure -textvariable branchColor
+      .tOptionGP.lfLinecolor.fBANDDAT1Color.e configure -state normal
+      .tOptionGP.lfLinecolor.fBANDDAT2Color.e configure -state normal
+      .tOptionGP.lfLinecolor.fBranchColor.e configure -state normal
+      destroy .tOptionGP.lfLinecolor.fBANDDAT1Color.b .tOptionGP.lfLinecolor.fBANDDAT2Color.b .tOptionGP.lfLinecolor.fBranchColor.b
+    }
+    radiobutton .tOptionGP.fLinecolor.rbRGB -text RGB -value 2 -variable LCMode -command {
+      .tOptionGP.lfLinecolor.fBANDDAT1Color.e configure -textvariable BANDDAT1RGBColor
+      .tOptionGP.lfLinecolor.fBANDDAT2Color.e configure -textvariable BANDDAT2RGBColor
+      .tOptionGP.lfLinecolor.fBranchColor.e configure -textvariable branchRGBColor
+      .tOptionGP.lfLinecolor.fBANDDAT1Color.e configure -state normal
+      .tOptionGP.lfLinecolor.fBANDDAT2Color.e configure -state normal
+      .tOptionGP.lfLinecolor.fBranchColor.e configure -state normal
+      if {![winfo exists .tOptionGP.lfLinecolor.fBANDDAT1Color.b]} {
+	button .tOptionGP.lfLinecolor.fBANDDAT1Color.b -text Select -command {
+	  set tmp [tk_chooseColor -initialcolor $BANDDAT1RGBColor -parent .tOptionGP]
+	  if {$tmp ne ""} {
+	    set BANDDAT1RGBColor $tmp
+	  }
+	}
+      } else {
+	.tOptionGP.lfLinecolor.fBANDDAT1Color.b configure -state normal
+      }
+      pack .tOptionGP.lfLinecolor.fBANDDAT1Color.b
+      if {![winfo exists .tOptionGP.lfLinecolor.fBANDDAT2Color.b]} {
+	button .tOptionGP.lfLinecolor.fBANDDAT2Color.b -text Select -command {
+	  set tmp [tk_chooseColor -initialcolor $BANDDAT2RGBColor -parent .tOptionGP]
+	  if {$tmp ne ""} {
+	    set BANDDAT2RGBColor $tmp
+	  }
+	}
+      } else {
+	.tOptionGP.lfLinecolor.fBANDDAT2Color.b configure -state normal
+      }
+      pack .tOptionGP.lfLinecolor.fBANDDAT2Color.b
+      if {![winfo exists .tOptionGP.lfLinecolor.fBranchColor.b]} {
+	button .tOptionGP.lfLinecolor.fBranchColor.b -text Select -command {
+	  set tmp [tk_chooseColor -initialcolor $BranchRGBColor -parent .tOptionGP]
+	  if {$tmp ne ""} {
+	    set BranchRGBColor $tmp
+	  }
+	}
+      } else {
+	.tOptionGP.lfLinecolor.fBranchColor.b configure -state normal
+      }
+      pack .tOptionGP.lfLinecolor.fBranchColor.b
+    }
+    pack .tOptionGP.fLinecolor.l .tOptionGP.fLinecolor.rbOff .tOptionGP.fLinecolor.rbOn .tOptionGP.fLinecolor.rbRGB -side left
+    labelframe .tOptionGP.lfLinecolor -labelwidget .tOptionGP.fLinecolor
+    frame .tOptionGP.lfLinecolor.fBANDDAT1Color
+    label .tOptionGP.lfLinecolor.fBANDDAT1Color.l -text "BANDDAT1"
+    if {$LCMode==2} {
+      entry .tOptionGP.lfLinecolor.fBANDDAT1Color.e -textvariable BANDDAT1RGBColor -width 10
+    } elseif {$LCMode==1} {
+      entry .tOptionGP.lfLinecolor.fBANDDAT1Color.e -textvariable BANDDAT1Color -width 10
+    } else {
+      entry .tOptionGP.lfLinecolor.fBANDDAT1Color.e -width 10 -state disabled
+    }
+    button .tOptionGP.lfLinecolor.fBANDDAT1Color.b -text Select -command {
+      set tmp [tk_chooseColor -initialcolor $BANDDAT1RGBColor -parent .tOptionGP]
+      if {$tmp ne ""} {
+	set BANDDAT1RGBColor $tmp
+      }
+    }
+    frame .tOptionGP.lfLinecolor.fBANDDAT2Color
+    label .tOptionGP.lfLinecolor.fBANDDAT2Color.l -text "BANDDAT2"
+    if {$LCMode==2} {
+      entry .tOptionGP.lfLinecolor.fBANDDAT2Color.e -textvariable BANDDAT2RGBColor -width 10
+    } elseif {$LCMode==1} {
+      entry .tOptionGP.lfLinecolor.fBANDDAT2Color.e -textvariable BANDDAT2Color -width 10
+    } else {
+      entry .tOptionGP.lfLinecolor.fBANDDAT2Color.e -width 10 -state disabled
+    }
+    button .tOptionGP.lfLinecolor.fBANDDAT2Color.b -text Select -command {
+      set tmp [tk_chooseColor -initialcolor $BANDDAT2Color -parent .tOptionGP]
+      if {$tmp ne ""} {
+	set BANDDAT2Color $tmp
+      }
+    }
+    frame .tOptionGP.lfLinecolor.fBranchColor
+    label .tOptionGP.lfLinecolor.fBranchColor.l -text "Branch"
+    if {$LCMode==2} {
+      entry .tOptionGP.lfLinecolor.fBranchColor.e -textvariable branchRGBColor -width 10
+    } elseif {$LCMode==1} {
+      entry .tOptionGP.lfLinecolor.fBranchColor.e -textvariable branchColor -width 10
+    } else {
+      entry .tOptionGP.lfLinecolor.fBranchColor.e -width 10 -state disabled
+    }
+    button .tOptionGP.lfLinecolor.fBranchColor.b -text Select -command {
+      set tmp [tk_chooseColor -initialcolor $branchColor -parent .tOptionGP]
+      if {$tmp ne ""} {
+	set branchColor $tmp
+      }
     }
   }
-  frame .tOptionGP.fBANDDAT2Color
-  label .tOptionGP.fBANDDAT2Color.l -text "lc (for BANDDAT2)"
-  entry .tOptionGP.fBANDDAT2Color.e -textvariable BANDDAT2Color -width 10
-  button .tOptionGP.fBANDDAT2Color.b -text Select -command {
-    set tmp [tk_chooseColor -initialcolor $BANDDAT2Color -parent .tOptionGP]
-    if {$tmp ne ""} {
-      set BANDDAT2Color $tmp
+  labelframe .tOptionGP.lfLinetype -text "linetype"
+  frame .tOptionGP.lfLinetype.fBANDDAT1Type
+  label .tOptionGP.lfLinetype.fBANDDAT1Type.l -text "BANDDAT1"
+  entry .tOptionGP.lfLinetype.fBANDDAT1Type.e -textvariable BANDDAT1Type -width 10
+  frame .tOptionGP.lfLinetype.fBANDDAT2Type
+  label .tOptionGP.lfLinetype.fBANDDAT2Type.l -text "BANDDAT2"
+  entry .tOptionGP.lfLinetype.fBANDDAT2Type.e -textvariable BANDDAT2Type -width 10
+  frame .tOptionGP.lfLinetype.fBranchType
+  label .tOptionGP.lfLinetype.fBranchType.l -text "Branch"
+  entry .tOptionGP.lfLinetype.fBranchType.e -textvariable branchType -width 10
+  labelframe .tOptionGP.lfLinewidth -text "linewidth"
+  frame .tOptionGP.lfLinewidth.fBANDDAT1Width
+  label .tOptionGP.lfLinewidth.fBANDDAT1Width.l -text "BANDDAT1"
+  entry .tOptionGP.lfLinewidth.fBANDDAT1Width.e -textvariable BANDDAT1Width -width 10
+  frame .tOptionGP.lfLinewidth.fBANDDAT2Width
+  label .tOptionGP.lfLinewidth.fBANDDAT2Width.l -text "BANDDAT2"
+  entry .tOptionGP.lfLinewidth.fBANDDAT2Width.e -textvariable BANDDAT2Width -width 10
+  frame .tOptionGP.lfLinewidth.fBranchWidth
+  label .tOptionGP.lfLinewidth.fBranchWidth.l -text "Branch"
+  entry .tOptionGP.lfLinewidth.fBranchWidth.e -textvariable branchWidth -width 10
+  if {$gnuplotVersion>=4.2} {
+    pack .tOptionGP.lfLinecolor.fBANDDAT1Color .tOptionGP.lfLinecolor.fBANDDAT2Color .tOptionGP.lfLinecolor.fBranchColor
+    pack .tOptionGP.lfLinecolor.fBANDDAT1Color.l .tOptionGP.lfLinecolor.fBANDDAT1Color.e -side left
+    if {$LCMode==2} {
+      pack .tOptionGP.lfLinecolor.fBANDDAT1Color.b -side left
+    }
+    pack .tOptionGP.lfLinecolor.fBANDDAT2Color.l .tOptionGP.lfLinecolor.fBANDDAT2Color.e -side left
+    if {$LCMode==2} {
+      pack .tOptionGP.lfLinecolor.fBANDDAT2Color.b -side left
+    }
+    pack .tOptionGP.lfLinecolor.fBranchColor.l .tOptionGP.lfLinecolor.fBranchColor.e -side left
+    if {$LCMode==2} {
+      pack .tOptionGP.lfLinecolor.fBranchColor.b -side left
     }
   }
-  frame .tOptionGP.fBranchColor
-  label .tOptionGP.fBranchColor.l -text "lc (for branch)"
-  entry .tOptionGP.fBranchColor.e -textvariable branchColor -width 10
-  button .tOptionGP.fBranchColor.b -text Select -command {
-    set tmp [tk_chooseColor -initialcolor $branchColor -parent .tOptionGP]
-    if {$tmp ne ""} {
-      set branchColor $tmp
-    }
-  }
-  pack .tOptionGP.fYtics .tOptionGP.fFontSize .tOptionGP.fYlabel .tOptionGP.fRatio .tOptionGP.fBANDDAT1Color .tOptionGP.fBANDDAT2Color .tOptionGP.fBranchColor .tOptionGP.bClose
   pack .tOptionGP.fFontSize.l .tOptionGP.fFontSize.e -side left
   pack .tOptionGP.fYlabel.l .tOptionGP.fYlabel.e -side left
   pack .tOptionGP.fRatio.l .tOptionGP.fRatio.e -side left
   pack .tOptionGP.fYtics.l .tOptionGP.fYtics.e -side left
-  pack .tOptionGP.fBANDDAT1Color.l .tOptionGP.fBANDDAT1Color.e .tOptionGP.fBANDDAT1Color.b -side left
-  pack .tOptionGP.fBANDDAT2Color.l .tOptionGP.fBANDDAT2Color.e .tOptionGP.fBANDDAT2Color.b -side left
-  pack .tOptionGP.fBranchColor.l .tOptionGP.fBranchColor.e .tOptionGP.fBranchColor.b -side left
+  pack .tOptionGP.lfLinetype.fBANDDAT1Type .tOptionGP.lfLinetype.fBANDDAT2Type .tOptionGP.lfLinetype.fBranchType
+  pack .tOptionGP.lfLinetype.fBANDDAT1Type.l .tOptionGP.lfLinetype.fBANDDAT1Type.e -side left
+  pack .tOptionGP.lfLinetype.fBANDDAT2Type.l .tOptionGP.lfLinetype.fBANDDAT2Type.e -side left
+  pack .tOptionGP.lfLinetype.fBranchType.l .tOptionGP.lfLinetype.fBranchType.e -side left
+  pack .tOptionGP.lfLinewidth.fBANDDAT1Width .tOptionGP.lfLinewidth.fBANDDAT2Width .tOptionGP.lfLinewidth.fBranchWidth
+  pack .tOptionGP.lfLinewidth.fBANDDAT1Width.l .tOptionGP.lfLinewidth.fBANDDAT1Width.e -side left
+  pack .tOptionGP.lfLinewidth.fBANDDAT2Width.l .tOptionGP.lfLinewidth.fBANDDAT2Width.e -side left
+  pack .tOptionGP.lfLinewidth.fBranchWidth.l .tOptionGP.lfLinewidth.fBranchWidth.e -side left
+  if {$gnuplotVersion>=4.2} {
+    pack .tOptionGP.fYtics .tOptionGP.fFontSize .tOptionGP.fYlabel .tOptionGP.fRatio .tOptionGP.lfLinetype .tOptionGP.lfLinewidth .tOptionGP.lfLinecolor .tOptionGP.bClose
+    pack .tOptionGP.lfLinecolor.fBANDDAT1Color .tOptionGP.lfLinecolor.fBANDDAT2Color .tOptionGP.lfLinecolor.fBranchColor
+  } else {
+    pack .tOptionGP.fYtics .tOptionGP.fFontSize .tOptionGP.fYlabel .tOptionGP.fRatio .tOptionGP.lfLinetype .tOptionGP.lfLinewidth .tOptionGP.bClose
+  }
 }
 set openmx_tcl [file normalize $argv0]
 set rootPath [file dirname $openmx_tcl]
@@ -902,6 +1253,9 @@ set ytics 1
 set BANDDAT1Color #ff0000
 set BANDDAT2Color #00ff00
 set branchColor #0000ff
+set BANDDAT1Type 1
+set BANDDAT2Type 2
+set branchType 3
 if [file exists $rootPath/.omxtoolrc] {
   source $rootPath/.omxtoolrc
 } else {
@@ -926,6 +1280,9 @@ if {[info patchlevel]>=8.5} {
 } else {
   pack .l0 .l1 .bband .bOption .bexit -expand 1 -fill both
 }
+set gnuplotInfo [exec gnuplot --version]
+set gnuplotVersion [lindex $gnuplotInfo 1]
+set gnuplotPatchlevel [lindex $gnuplotInfo 3]
 while 1 {
   set buff [status]
   set buff1 [status1]
