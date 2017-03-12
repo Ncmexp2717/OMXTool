@@ -32,6 +32,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - 2017/03/09 Ver. 1.5 Released by Naoya Yamaguchi.
 - 2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
 - 2017/03/13 Ver. 1.5.2 Modified by Naoya Yamaguchi.
+- 2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
 
 ## Description:
    This script provides graphical utilities for OpenMX.
