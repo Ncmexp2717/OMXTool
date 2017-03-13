@@ -50,6 +50,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 ## Installation
 1. Download `OMXTool-*.tar.gz` or `OMXTool-*.zip` from [here](https://github.com/Ncmexp2717/OMXTool/releases) and unzip it. (Usually, \*=*version*.)
 1. Put `omxtool` on your computer.
+
 ### For Upgrade
 1. Overwrite `omxtool`.
 1. Launch it and reset the settings via menu: ***Option -> Reset***.
