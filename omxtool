@@ -34,6 +34,7 @@ exec tclsh "$0" ${1+"$@"}
 #@(#)    2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.2 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
+#@(#)    2017/03/13 Ver. 1.5.4 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -359,7 +360,6 @@ proc band {} {
   } else {
     set terminal x11
   }
-  set bandgnuExport "postscript eps"
   set fp [open $gpath r]
   while {[gets $fp txt] >= 0} {
     if {[string equal -length 5 $txt pause]} {
@@ -382,7 +382,7 @@ proc band {} {
 	file delete .$path.tcl
       }
       toplevel .t$nwin
-      wm title .t$nwin $dir/$gpath
+      wm title .t$nwin "Preview - $dir/$gpath"
       if {$bandgnuMode eq "C"} {
 	set gap [bandgap]
       } else {
@@ -500,6 +500,14 @@ proc band {} {
 	  .t$nwin.fGnuplot.cbBackground select
 	}
 	button .t$nwin.fCommon.bOption -text Option -command openOptionGP
+	button .t$nwin.fCommon.bScript -text Script -command "
+	set tmp \[tk_getSaveFile -initialdir $dir -filetypes {{{Gnuplot Script} {*.gp *.plt *.gnu *.gpi *.gplot}} {{All types} {*}}} -parent .t$nwin\]
+	if {\$tmp eq \"\"} {return}
+	puts $p \"  save '\$tmp'\"
+	puts $p \"  se term $terminal\"
+	puts $p \"  se ou\"
+	tk_messageBox -type ok -message \"\$tmp is made.\" -title \"Save as a Gnuplot script.\"
+	"
 	pack .t$nwin.fGnuplot
 	if {$bandgnuPreview} {
 	  pack .t$nwin.fGnuplot.bGnuplot .t$nwin.fGnuplot.cbBackground -side left
@@ -510,7 +518,7 @@ proc band {} {
 	pack .t$nwin.lfBranch.sb .t$nwin.lfBranch.l .t$nwin.lfBranch.b -side left
       }
       pack .t$nwin.fCommon
-      pack .t$nwin.fCommon.bExport .t$nwin.fCommon.bOption .t$nwin.fCommon.bexit -side left
+      pack .t$nwin.fCommon.bExport .t$nwin.fCommon.bScript .t$nwin.fCommon.bOption .t$nwin.fCommon.bexit -side left
       incr nwin
     } else {
       puts $p $txt
