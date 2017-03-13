@@ -33,6 +33,7 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 - 2017/03/09 Ver. 1.5.1 Modified by Naoya Yamaguchi.
 - 2017/03/13 Ver. 1.5.2 Modified by Naoya Yamaguchi.
 - 2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
+- 2017/03/13 Ver. 1.5.4 Modified by Naoya Yamaguchi.
 
 ## Description:
    This script provides graphical utilities for OpenMX.
@@ -48,7 +49,10 @@ This software includes the work that is distributed in version 3 of the GPL (GPL
 
 ## Installation
 1. Download `OMXTool-*.tar.gz` or `OMXTool-*.zip` from [here](https://github.com/Ncmexp2717/OMXTool/releases) and unzip it. (Usually, \*=*version*.)
-2. Put `omxtool` on your computer.
+1. Put `omxtool` on your computer.
+### For Upgrade
+1. Overwrite `omxtool`.
+1. Launch it and reset the settings via menu: ***Option -> Reset***.
 
 ## Usage:
    `./omxtool`
