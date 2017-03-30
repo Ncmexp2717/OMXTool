@@ -35,6 +35,7 @@ exec tclsh "$0" ${1+"$@"}
 #@(#)    2017/03/13 Ver. 1.5.2 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.4 Modified by Naoya Yamaguchi.
+#@(#)    2017/03/30 Ver. 1.5.5 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -1265,6 +1266,13 @@ set branchColor #0000ff
 set BANDDAT1Type 1
 set BANDDAT2Type 2
 set branchType 3
+set BANDDAT1Width 1
+set BANDDAT2Width 1
+set branchWidth 3
+set LCMode 2
+set BANDDAT1RGBColor #ff0000
+set BANDDAT2RGBColor #00ff00
+set branchRGBColor #0000ff
 if [file exists $rootPath/.omxtoolrc] {
   source $rootPath/.omxtoolrc
 } else {
