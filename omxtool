@@ -1,6 +1,6 @@
 #!/bin/sh
 #\
-exec tclsh "$0" ${1+"$@"}
+exec wish "$0" ${1+"$@"}
 #@(#) OMXTool Ver. 1.5 - graphical utility tool for OpenMX.
 #@(#) Copyright (C), 2015-2017, Naoya Yamaguchi.
 #@(#) This software includes the work that is distributed
@@ -36,6 +36,7 @@ exec tclsh "$0" ${1+"$@"}
 #@(#)    2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.4 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/30 Ver. 1.5.5 Modified by Naoya Yamaguchi.
+#@(#)    2017/06/19 Ver. 1.5.6 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -1291,6 +1292,16 @@ label .l1 -textvariable buff1 -justify left
 button .bband -text Band -command band
 button .bOption -text Option -command openOption
 button .bexit -text Exit -command exit
+button .bInfo -text Info -command {
+  toplevel .tInfo
+  wm title .tInfo Info
+  grab set .tInfo
+  label .tInfo.lVersion -text "OMXTool Ver. 1.5.6 Copyright (C), 2015-2017, Naoya Yamaguchi."
+  button .tInfo.bClose -text Close -command {
+    destroy .tInfo
+  }
+  pack .tInfo.lVersion .tInfo.bClose
+}
 if {[info patchlevel]>=8.5} {
   button .bbin2bin -text bin2bin -command b2b
   pack .l0 .l1 .bband .bbin2bin .bOption .bexit -expand 1 -fill both
