@@ -36,7 +36,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/03/13 Ver. 1.5.3 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/13 Ver. 1.5.4 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/30 Ver. 1.5.5 Modified by Naoya Yamaguchi.
-#@(#)    2017/06/19 Ver. 1.5.6 Modified by Naoya Yamaguchi.
+#@(#)    2017/06/18 Ver. 1.5.6 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
