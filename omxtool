@@ -1304,9 +1304,9 @@ button .bInfo -text Info -command {
 }
 if {[info patchlevel]>=8.5} {
   button .bbin2bin -text bin2bin -command b2b
-  pack .l0 .l1 .bband .bbin2bin .bOption .bexit -expand 1 -fill both
+  pack .l0 .l1 .bband .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
 } else {
-  pack .l0 .l1 .bband .bOption .bexit -expand 1 -fill both
+  pack .l0 .l1 .bband .bOption .bInfo .bexit -expand 1 -fill both
 }
 set gnuplotInfo [exec gnuplot --version]
 set gnuplotVersion [lindex $gnuplotInfo 1]
