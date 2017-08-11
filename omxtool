@@ -37,6 +37,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/03/13 Ver. 1.5.4 Modified by Naoya Yamaguchi.
 #@(#)    2017/03/30 Ver. 1.5.5 Modified by Naoya Yamaguchi.
 #@(#)    2017/06/18 Ver. 1.5.6 Modified by Naoya Yamaguchi.
+#@(#)    2017/08/11 Ver. 1.5.7 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -66,7 +67,7 @@ proc status1 {} {
   return $stat
 }
 proc bandgap {} {
-  global dir path
+  global path
   set fp [open $path.BANDDAT1]
   while {[gets $fp data] >= 0} {
     if {[lindex $data 0] == 0.000000} {break}
@@ -82,6 +83,170 @@ proc bandgap {} {
     }
   }
   return [expr $cmin - $vmax]
+}
+proc Rashba {path nkpath lOrigin band numBand center direction convex} {
+  set Bohr2Angstrom 0.52917721092
+  set fp [open $path.BANDDAT1]
+  for {set i 0} {$i<($band-$lOrigin-$numBand+2)*$nkpath-1} {incr i} {
+    while {[gets $fp data]>0} {
+    }
+    gets $fp data
+  }
+  if {$convex eq "upward"} {
+    if {$numBand==4} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner3($i) $data
+	}
+	gets $fp data
+      }
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner2($i) $data
+	}
+	gets $fp data
+      }
+    }
+    if {$numBand>1} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner1($i) $data
+	}
+	gets $fp data
+      }
+    }
+  } else {
+    for {set j 0} {$j<$numBand-1} {incr j} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	}
+	gets $fp data
+      }
+    }
+  }
+  for {set i 0} {$i<$nkpath} {incr i} {
+    while {[gets $fp data]>0} {
+      lappend kE($i) $data
+    }
+    gets $fp data
+  }
+  if {$convex eq "downward"} {
+    if {$numBand>1} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner1($i) $data
+	}
+	gets $fp data
+      }
+    }
+    if {$numBand==4} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner2($i) $data
+	}
+	gets $fp data
+      }
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner3($i) $data
+	}
+	gets $fp data
+      }
+    }
+  }
+  if {$convex eq "downward"} {
+    if {$center>$direction} {
+      set eigen0 [lindex $kE($direction) end 1]
+      for {set j [expr {[llength $kE($direction)]-2}]} {$j>=0} {incr j -1} {
+	set eigen [lindex $kE($direction) $j 1]
+	if {$eigen0<$eigen} {
+	  break
+	}
+	set eigen0 $eigen
+      }
+      if {$j>=0} {
+	set k_R [expr {([lindex $kE($direction) end 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {([lindex $kE($direction) end 1]-[lindex $kE($direction) [expr {$j+1}] 1])}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {(([lindex $kE($direction) end 1]+[lindex $kEInner1($direction) end 1])*0.5-[lindex $kE($direction) [expr {$j+1}] 1])}]
+	} else {
+	  set E_R [expr {(([lindex $kE($direction) end 1]+[lindex $kEInner1($direction) end 1]+[lindex $kEInner2($direction) end 1]+[lindex $kEInner3($direction) end 1])*0.25-([lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kE($direction) [expr {$j+1}] 1])*0.5)}]
+	}
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+      }
+    } else {
+      set eigen0 [lindex $kE($center) 0 1]
+      set n [llength $kE($center)]
+      for {set j 1} {$j<$n} {incr j} {
+	set eigen [lindex $kE($center) $j 1]
+	if {$eigen0<$eigen} {
+	  break
+	}
+	set eigen0 $eigen
+      }
+      if {$j<$n} {
+	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) 0 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {[lindex $kE($center) 0 1]-[lindex $kE($center) [expr {$j-1}] 1]}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {([lindex $kE($center) 0 1]+[lindex $kEInner1($center) 0 1])*0.5-[lindex $kE($center) [expr {$j-1}] 1]}]
+	} else {
+	  set E_R [expr {([lindex $kE($center) 0 1]+[lindex $kEInner1($center) 0 1]+[lindex $kEInner2($center) 0 1]+[lindex $kEInner3($center) 0 1])*0.25-([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kE($center) [expr {$j-1}] 1])*0.5}]
+	}
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+      }
+    }
+  } else {
+    if {$center>$direction} {
+      set eigen0 [lindex $kE($direction) end 1]
+      for {set j [expr {[llength $kE($direction)]-2}]} {$j>=0} {incr j -1} {
+	set eigen [lindex $kE($direction) $j 1]
+	if {$eigen0>$eigen} {
+	  break
+	}
+	set eigen0 $eigen
+      }
+      if {$j>=0} {
+	set k_R [expr {([lindex $kE($direction) end 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
+	set E_R [expr {[lindex $kE($direction) [expr {$j+1}] 1]-[lindex $kE($direction) end 1]}]
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+      }
+    } else {
+      set eigen0 [lindex $kE($center) 0 1]
+      set n [llength $kE($center)]
+      for {set j 1} {$j<$n} {incr j} {
+	set eigen [lindex $kE($center) $j 1]
+	if {$eigen0>$eigen} {
+	  break
+	}
+	set eigen0 $eigen
+      }
+      if {$j<$n} {
+	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) 0 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {[lindex $kE($center) [expr {$j-1}] 1]-[lindex $kE($center) 0 1]}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kEInner1($center) [expr {$j-1}] 1])*0.5-[lindex $kE($center) 0 1]}]
+	} else {
+	  set E_R [expr {([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kEInner1($center) [expr {$j-1}] 1])*0.5-([lindex $kE($center) 0 1]+[lindex $kEInner1($center) 0 1]+[lindex $kEInner2($center) 0 1]+[lindex $kEInner3($center) 0 1])*0.25}]
+	}
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+      }
+    }
+  }
 }
 proc band_close {win} {
   global gp
@@ -107,7 +272,7 @@ proc bandgnu {argc argv} {
   set m_perpath 0
   for {set i 1} {$i<=$nkpath} {incr i} {
     gets $fp data
-    scan $data "%d %lf %lf %lf %lf %lf %lf %s %s" n_perpath($i) kpath11($i)(1)(1) kpath($i)(1)(2) kpath($i)(1)(3) kpath($i)(2)(1) kpath($i)(2)(2) kpath($i)(2)(3) kname($i)(1) kname($i)(2)
+    scan $data "%d %lf %lf %lf %lf %lf %lf %s %s" n_perpath($i) kpath($i)(1)(1) kpath($i)(1)(2) kpath($i)(1)(3) kpath($i)(2)(1) kpath($i)(2)(2) kpath($i)(2)(3) kname($i)(1) kname($i)(2)
     if {$kname($i\)\(1) eq "G"} {
       set kname($i)(1) "{/Symbol G}"
     }
@@ -253,14 +418,13 @@ proc bandgnu {argc argv} {
   puts $fp "set style data lines"
   puts $fp "set nokey"
   puts $fp "set zeroaxis"
-  puts $fp "set ytics 1"
   puts $fp "set mytics 5"
   puts $fp [format "set xra \[%lf:%lf\]" [lindex $klinel 0] [lindex $klinel end]]
-  if {$argc==3} {
-    puts $fp [format "set yra \[%lf:%lf\]" $Emin $Emax]
-  } else {
-    puts $fp [format "set yra \[%lf:%lf\]" [expr {($ymin1-$ChemP)*$Unit}] [expr {($ymax1-$ChemP)*$Unit}]]
+  if {$argc!=3} {
+    set Emin [expr {($ymin1-$ChemP)*$Unit}]
+    set Emax [expr {($ymax1-$ChemP)*$Unit}]
   }
+  puts $fp [format "set yra \[%lf:%lf\]" $Emin $Emax]
   puts $fp "set ylabel \"$Unitname\""
   puts -nonewline $fp "set xtics ("
   for {set ik 1} {$ik<=$nkpath} {incr ik} {
@@ -287,13 +451,13 @@ proc bandgnu {argc argv} {
   puts $fp "pause -1"
   close $fp
   if {$mspin} {
-    return "$nkpath $mspin $lmin(0) $lmax(0) $lmin(1) $lmax(1)"
+    return "$Emin $Emax $nkpath $mspin $lmin(0) $lmax(0) $lmin(1) $lmax(1)"
   } else {
-    return "$nkpath $mspin $lmin(0) $lmax(0)"
+    return "$Emin $Emax $nkpath $mspin $lmin(0) $lmax(0)"
   }
 }
 proc band {} {
-  global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType gnuplotVersion BANDDAT1Width BANDDAT2Width branchWidth LCMode lmin lmax branchMode
+  global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType gnuplotVersion BANDDAT1Width BANDDAT2Width branchWidth LCMode lmin lmax branchMode yraFull RashbaExtension
   if {$bandgnuMode eq "C"} {
     if {$bandgnuPath eq ""} {
       set tmp [tk_getOpenFile -initialdir $dir -filetypes {{{source file} {bandgnu*.c}}} -title "Select a source file of 'bandgnu'"]
@@ -327,14 +491,20 @@ proc band {} {
   } else {
     cd $dir
     set path [file tail $path]
-    set bandgnuList [bandgnu 3 "$path $yraMin $yraMax"]
-    set nkpath [lindex $bandgnuList 0]
-    set mspin [lindex $bandgnuList 1]
-    set lmin(1) [lindex $bandgnuList 2]
-    set lmax(1) [lindex $bandgnuList 3]
+    if {!$yraFull} {
+      set bandgnuList [bandgnu 3 "$path $yraMin $yraMax"]
+    } else {
+      set bandgnuList [bandgnu 1 "$path"]
+      set yraMin [lindex $bandgnuList 0]
+      set yraMax [lindex $bandgnuList 1]
+    }
+    set nkpath [lindex $bandgnuList 2]
+    set mspin [lindex $bandgnuList 3]
+    set lmin($nwin)(1) [lindex $bandgnuList 4]
+    set lmax($nwin)(1) [lindex $bandgnuList 5]
     if {$mspin} {
-      set lmin(2) [lindex $bandgnuList 4]
-      set lmax(2) [lindex $bandgnuList 5]
+      set lmin($nwin)(2) [lindex $bandgnuList 6]
+      set lmax($nwin)(2) [lindex $bandgnuList 7]
     }
   }
   set path [file rootname $path]
@@ -352,28 +522,28 @@ proc band {} {
     "]
   }
   set p [open |gnuplot w]
-  fconfigure $p -buffering none
+  fconfigure $p -buffering line
   puts $p "  set mouse"
-  if {$bandgnuMode eq "Tcl"} {
-    puts $p "  set term unknown"
-  }
   if {$bandgnuEnhanced} {
     set terminal "x11 enhanced"
   } else {
     set terminal x11
   }
   set fp [open $gpath r]
+  set numLine 0
   while {[gets $fp txt] >= 0} {
-    if {[string equal -length 5 $txt pause]} {
+    incr numLine
+    if {$numLine==9} {
       puts $p "  se size ratio $ratio"
       puts $p "  se yr \[$yraMin:$yraMax\]"
       puts $p "  se yl '$ylabel'"
       puts $p "  se yti $ytics"
-      puts $p "  se term $terminal"
+      set txtPlot $txt
+    } elseif {$numLine==10} {
       if {$bandgnuAE} {
 	puts $p "  se term $bandgnuExport enhanced color $fontSize"
 	puts $p "  se ou '$path.eps'"
-	puts $p "  rep"
+	puts $p $txtPlot
 	puts $p "  se term $terminal"
 	puts $p "  se output"
       }
@@ -460,14 +630,14 @@ proc band {} {
 	"
 	frame .t$nwin.fBranch
 	radiobutton .t$nwin.fBranch.rbBANDDAT1 -text BANDDAT1 -value 1 -variable branchMode($nwin) -command "
-	.t$nwin.lfBranch.sb configure -from $lmin(1) -to $lmax(1) -increment 1
-	.t$nwin.lfBranch.l configure -text \"($lmin(1)-$lmax(1))\"
+	.t$nwin.lfBranch.sb configure -from $lmin($nwin\)\(1) -to $lmax($nwin\)\(1) -increment 1
+	.t$nwin.lfBranch.l configure -text \"($lmin($nwin\)\(1)-$lmax($nwin\)\(1))\"
 	"
 	.t$nwin.fBranch.rbBANDDAT1 select
 	if {$mspin} {
 	  radiobutton .t$nwin.fBranch.rbBANDDAT2 -text BANDDAT2 -value 2 -variable branchMode($nwin) -command "
-	  .t$nwin.lfBranch.sb configure -from $lmin(2) -to $lmax(2) -increment 1
-	  .t$nwin.lfBranch.l configure -text \"($lmin(2)-$lmax(2))\"
+	  .t$nwin.lfBranch.sb configure -from $lmin($nwin\)\(2) -to $lmax($nwin\)\(2) -increment 1
+	  .t$nwin.lfBranch.l configure -text \"($lmin($nwin\)\(2)-$lmax($nwin\)\(2))\"
 	  "
 	}
 	pack .t$nwin.fBranch.rbBANDDAT1 -side left
@@ -475,12 +645,12 @@ proc band {} {
 	  pack .t$nwin.fBranch.rbBANDDAT2 -side left
 	}
 	labelframe .t$nwin.lfBranch -labelwidget .t$nwin.fBranch
-	spinbox .t$nwin.lfBranch.sb -from $lmin(1) -to $lmax(1) -increment 1
+	spinbox .t$nwin.lfBranch.sb -from $lmin($nwin\)\(1) -to $lmax($nwin\)\(1) -increment 1
 	button .t$nwin.lfBranch.b -text Branch -command "
-	if {\[.t$nwin.lfBranch.sb get\]>\$lmax(\$branchMode($nwin))} {
-	.t$nwin.lfBranch.sb set \$lmax(\$branchMode($nwin))
-	} elseif {\[.t$nwin.lfBranch.sb get\]<\$lmin(\$branchMode($nwin))} {
-	.t$nwin.lfBranch.sb set \$lmin(\$branchMode($nwin))
+	if {\[.t$nwin.lfBranch.sb get\]>\$lmax($nwin\\)\\(\$branchMode($nwin))} {
+	.t$nwin.lfBranch.sb set \$lmax($nwin\\)\\(\$branchMode($nwin))
+	} elseif {\[.t$nwin.lfBranch.sb get\]<\$lmin($nwin\\)\\(\$branchMode($nwin))} {
+	.t$nwin.lfBranch.sb set \$lmin($nwin\\)\\(\$branchMode($nwin))
 	}
 	puts $p \"  se size ratio \$ratio\"
 	puts $p \"  se yl '\$ylabel'\"
@@ -494,9 +664,9 @@ proc band {} {
 	lappend lineStyle \"lc '\$branchColor'\"
 	}
 	}
-	puts $p \"  rep '$path.BANDDAT\$branchMode($nwin)' in \[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode($nwin))+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin(\$branchMode($nwin))+2)*$nkpath-2}\] \[join \$lineStyle\]\"
+	puts $p \"  rep '$path.BANDDAT\$branchMode($nwin)' in \[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin($nwin\\)\\(\$branchMode($nwin))+1)*$nkpath-1}\]:\[expr {(\[.t$nwin.lfBranch.sb get\]-\$lmin($nwin\\)\\(\$branchMode($nwin))+2)*$nkpath-2}\] \[join \$lineStyle\]\"
 	"
-	label .t$nwin.lfBranch.l -text "($lmin(1)-$lmax(1))"
+	label .t$nwin.lfBranch.l -text "($lmin($nwin\)\(1)-$lmax($nwin\)\(1))"
 	if {$bandgnuPreview} {
 	  checkbutton .t$nwin.fGnuplot.cbBackground -text Background -variable BGColor -offvalue #ffffff -onvalue $bandgnuColor -command ".t$nwin.c configure -bg \$BGColor"
 	  .t$nwin.fGnuplot.cbBackground select
@@ -510,6 +680,43 @@ proc band {} {
 	puts $p \"  se ou\"
 	tk_messageBox -type ok -message \"\$tmp is made.\" -title \"Save as a Gnuplot script.\"
 	"
+	button .t$nwin.bRashba -text Rashba -command "
+	if {\[winfo exists .t$nwin.tRashba\]} {
+	raise .t$nwin.tRashba
+	focus .t$nwin.tRashba
+	return
+	}
+	toplevel .t$nwin.tRashba
+	wm title .t$nwin.tRashba Rashba
+	frame .t$nwin.tRashba.fBand
+	spinbox .t$nwin.tRashba.fBand.sbBand -from $lmin($nwin\)\(1) -to $lmax($nwin\)\(1) -increment 1
+	label .t$nwin.tRashba.fBand.l -text \"($lmin($nwin\)\(1)-$lmax($nwin\)\(1))\"
+	radiobutton .t$nwin.tRashba.fBand.rbOuter -text \"outer\" -variable numBand($nwin) -value 1
+	radiobutton .t$nwin.tRashba.fBand.rbBoth -text \"both\" -variable numBand($nwin) -value 2
+	radiobutton .t$nwin.tRashba.fBand.rbSlab -text \"slab\" -variable numBand($nwin) -value 4
+	set numBand($nwin) 1
+	frame .t$nwin.tRashba.fKP
+	label .t$nwin.tRashba.fKP.lCenter -text Center
+	entry .t$nwin.tRashba.fKP.eCenter -textvariable center($nwin)
+	label .t$nwin.tRashba.fKP.lDirection -text Direction
+	entry .t$nwin.tRashba.fKP.eDirection -textvariable direction($nwin)
+	frame .t$nwin.tRashba.fConvex
+	radiobutton .t$nwin.tRashba.fConvex.rbDownward -text \"downward\" -variable convex($nwin) -value downward
+	radiobutton .t$nwin.tRashba.fConvex.rbUpward -text \"upward\" -variable convex($nwin) -value upward
+	frame .t$nwin.tRashba.fCommon
+	button .t$nwin.tRashba.fCommon.bRashba -text \"Rashba\" -command {Rashba $dir/$path $nkpath $lmin($nwin\)\(1) \[.t$nwin.tRashba.fBand.sbBand get\] \$numBand($nwin) \$center($nwin) \$direction($nwin) \$convex($nwin)}
+	button .t$nwin.tRashba.fCommon.bClose -text Close -command {
+	destroy .t$nwin.tRashba
+	}
+	pack .t$nwin.tRashba.fBand.sbBand .t$nwin.tRashba.fBand.l .t$nwin.tRashba.fBand.rbOuter .t$nwin.tRashba.fBand.rbBoth .t$nwin.tRashba.fBand.rbSlab -side left
+	pack .t$nwin.tRashba.fBand
+	pack .t$nwin.tRashba.fKP.lCenter .t$nwin.tRashba.fKP.eCenter .t$nwin.tRashba.fKP.lDirection .t$nwin.tRashba.fKP.eDirection -side left
+	pack .t$nwin.tRashba.fKP
+	pack .t$nwin.tRashba.fConvex.rbDownward .t$nwin.tRashba.fConvex.rbUpward -side left
+	pack .t$nwin.tRashba.fConvex
+	pack .t$nwin.tRashba.fCommon.bRashba .t$nwin.tRashba.fCommon.bClose -side left
+	pack .t$nwin.tRashba.fCommon
+	"
 	pack .t$nwin.fGnuplot
 	if {$bandgnuPreview} {
 	  pack .t$nwin.fGnuplot.bGnuplot .t$nwin.fGnuplot.cbBackground -side left
@@ -518,6 +725,9 @@ proc band {} {
 	}
 	pack .t$nwin.lfBranch
 	pack .t$nwin.lfBranch.sb .t$nwin.lfBranch.l .t$nwin.lfBranch.b -side left
+      }
+      if {$RashbaExtension} {
+	pack .t$nwin.bRashba
       }
       pack .t$nwin.fCommon
       pack .t$nwin.fCommon.bExport .t$nwin.fCommon.bScript .t$nwin.fCommon.bOption .t$nwin.fCommon.bexit -side left
@@ -700,7 +910,7 @@ proc b2b {} {
   }
 }
 proc saveSetting {} {
-  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType BANDDAT1Width BANDDAT2Width branchWidth LCMode BANDDAT1RGBColor BANDDAT2RGBColor branchRGBColor
+  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType BANDDAT1Width BANDDAT2Width branchWidth LCMode BANDDAT1RGBColor BANDDAT2RGBColor branchRGBColor yraFull RashbaExtension
   set fprc [open $rootPath/.omxtoolrc w]
   puts $fprc "set yraMax {$yraMax}"
   puts $fprc "set yraMin {$yraMin}"
@@ -729,6 +939,8 @@ proc saveSetting {} {
   puts $fprc "set BANDDAT1RGBColor {$BANDDAT1RGBColor}"
   puts $fprc "set BANDDAT2RGBColor {$BANDDAT2RGBColor}"
   puts $fprc "set branchRGBColor {$branchRGBColor}"
+  puts $fprc "set yraFull {$yraFull}"
+  puts $fprc "set RashbaExtension {$RashbaExtension}"
   close $fprc
 }
 proc openOption {} {
@@ -790,10 +1002,10 @@ proc openOption {} {
 	set bandgnuPath $tmp
       }
     }
-    frame .tOption.tbandgnu.fAP
-    label .tOption.tbandgnu.fAP.l -text "Automatic Export"
-    radiobutton .tOption.tbandgnu.fAP.rbOn -text "On" -variable bandgnuAE -value on
-    radiobutton .tOption.tbandgnu.fAP.rbOff -text "Off" -variable bandgnuAE -value off
+    frame .tOption.tbandgnu.fAE
+    label .tOption.tbandgnu.fAE.l -text "Automatic Export"
+    radiobutton .tOption.tbandgnu.fAE.rbOn -text "On" -variable bandgnuAE -value on
+    radiobutton .tOption.tbandgnu.fAE.rbOff -text "Off" -variable bandgnuAE -value off
     frame .tOption.tbandgnu.fColor
     label .tOption.tbandgnu.fColor.l -text "Background Color"
     entry .tOption.tbandgnu.fColor.e -textvariable bandgnuColor -width 10
@@ -831,10 +1043,10 @@ proc openOption {} {
     label .tOption.tbandgnu.fEnhanced.l -text "Enhanced Expression"
     radiobutton .tOption.tbandgnu.fEnhanced.rbOn -text On -variable bandgnuEnhanced -value on
     radiobutton .tOption.tbandgnu.fEnhanced.rbOff -text Off -variable bandgnuEnhanced -value off
-    pack .tOption.tbandgnu.fMode .tOption.tbandgnu.fPath .tOption.tbandgnu.fAP .tOption.tbandgnu.fColor .tOption.tbandgnu.fPreview .tOption.tbandgnu.fExport .tOption.tbandgnu.fEnhanced .tOption.tbandgnu.bClose
+    pack .tOption.tbandgnu.fMode .tOption.tbandgnu.fPath .tOption.tbandgnu.fAE .tOption.tbandgnu.fColor .tOption.tbandgnu.fPreview .tOption.tbandgnu.fExport .tOption.tbandgnu.fEnhanced .tOption.tbandgnu.bClose
     pack .tOption.tbandgnu.fMode.l .tOption.tbandgnu.fMode.rbTcl .tOption.tbandgnu.fMode.rbC -side left
     pack .tOption.tbandgnu.fPath.l .tOption.tbandgnu.fPath.e .tOption.tbandgnu.fPath.b -side left
-    pack .tOption.tbandgnu.fAP.l .tOption.tbandgnu.fAP.rbOn .tOption.tbandgnu.fAP.rbOff -side left
+    pack .tOption.tbandgnu.fAE.l .tOption.tbandgnu.fAE.rbOn .tOption.tbandgnu.fAE.rbOff -side left
     pack .tOption.tbandgnu.fColor.l .tOption.tbandgnu.fColor.e .tOption.tbandgnu.fColor.b -side left
     pack .tOption.tbandgnu.fPreview.l .tOption.tbandgnu.fPreview.rbOn .tOption.tbandgnu.fPreview.rbOff -side left
     pack .tOption.tbandgnu.fExport.l .tOption.tbandgnu.fExport.e .tOption.tbandgnu.fExport.b -side left
@@ -869,6 +1081,8 @@ proc openOption {} {
     set BANDDAT1RGBColor #ff0000
     set BANDDAT2RGBColor #00ff00
     set branchRGBColor #0000ff
+    set yraFull off
+    set RashbaExtension off
   }
   button .tOption.bClose -text Close -command {
     destroy .tOption
@@ -1015,12 +1229,37 @@ proc openOption {} {
   frame .tOption.lfLinewidth.fBranchWidth
   label .tOption.lfLinewidth.fBranchWidth.l -text "Branch"
   entry .tOption.lfLinewidth.fBranchWidth.e -textvariable branchWidth -width 10
-  if {$gnuplotVersion>=4.2} {
-    pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.lfLinetype .tOption.lfLinewidth .tOption.lfLinecolor .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
-  } else {
-    pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.lfLinetype .tOption.lfLinewidth .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bClose
+  checkbutton .tOption.fYra.cbFull -text Full -variable yraFull -offvalue off -onvalue on -command {
+    if {$yraFull} {
+      set ytics auto
+      .tOption.fYra.eMin configure -state disabled
+      .tOption.fYra.eMax configure -state disabled
+    } else {
+      .tOption.fYra.eMin configure -state normal
+      .tOption.fYra.eMax configure -state normal
+    }
   }
-  pack .tOption.fYra.l .tOption.fYra.ll .tOption.fYra.eMin .tOption.fYra.lc .tOption.fYra.eMax .tOption.fYra.lr -side left
+  button .tOption.bExtension -text Extension -command {
+    toplevel .tOption.tExtension
+    wm title .tOption.tExtension Extension
+    grab set .tOption.tExtension
+    button .tOption.tExtension.bClose -text Close -command {
+      destroy .tOption.tExtension
+      grab set .tOption
+    }
+    frame .tOption.tExtension.fRashba
+    label .tOption.tExtension.fRashba.l -text "Rashba Parameters Estimation (Beta)"
+    radiobutton .tOption.tExtension.fRashba.rbOn -text On -variable RashbaExtension -value on
+    radiobutton .tOption.tExtension.fRashba.rbOff -text Off -variable RashbaExtension -value off
+    pack .tOption.tExtension.fRashba .tOption.tExtension.bClose
+    pack .tOption.tExtension.fRashba.l .tOption.tExtension.fRashba.rbOn .tOption.tExtension.fRashba.rbOff -side left
+  }
+  if {$gnuplotVersion>=4.2} {
+    pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.lfLinetype .tOption.lfLinewidth .tOption.lfLinecolor .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bExtension .tOption.bClose
+  } else {
+    pack .tOption.fYra .tOption.fYtics .tOption.fFontSize .tOption.fYlabel .tOption.fRatio .tOption.lfLinetype .tOption.lfLinewidth .tOption.bReset .tOption.bCommon .tOption.bbandgnu .tOption.bExtension .tOption.bClose
+  }
+  pack .tOption.fYra.l .tOption.fYra.ll .tOption.fYra.eMin .tOption.fYra.lc .tOption.fYra.eMax .tOption.fYra.lr .tOption.fYra.cbFull -side left
   pack .tOption.fFontSize.l .tOption.fFontSize.e -side left
   pack .tOption.fYlabel.l .tOption.fYlabel.e -side left
   pack .tOption.fRatio.l .tOption.fRatio.e -side left
@@ -1274,6 +1513,8 @@ set LCMode 2
 set BANDDAT1RGBColor #ff0000
 set BANDDAT2RGBColor #00ff00
 set branchRGBColor #0000ff
+set yraFull off
+set RashbaExtension off
 if [file exists $rootPath/.omxtoolrc] {
   source $rootPath/.omxtoolrc
 } else {
@@ -1296,7 +1537,7 @@ button .bInfo -text Info -command {
   toplevel .tInfo
   wm title .tInfo Info
   grab set .tInfo
-  label .tInfo.lVersion -text "OMXTool Ver. 1.5.6 Copyright (C), 2015-2017, Naoya Yamaguchi."
+  label .tInfo.lVersion -text "OMXTool Ver. 1.5.7 Copyright (C), 2015-2017, Naoya Yamaguchi."
   button .tInfo.bClose -text Close -command {
     destroy .tInfo
   }
