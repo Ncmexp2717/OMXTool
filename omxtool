@@ -39,6 +39,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/06/18 Ver. 1.5.6 Modified by Naoya Yamaguchi.
 #@(#)    2017/08/11 Ver. 1.5.7 Modified by Naoya Yamaguchi.
 #@(#)    2017/08/20 Ver. 1.5.8 Modified by Naoya Yamaguchi.
+#@(#)    2017/09/26 Ver. 1.5.9 Modified by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -50,9 +51,9 @@ exec wish "$0" ${1+"$@"}
 package require Tk
 proc status {} {
   set stat ""
-  if {![catch {exec which qstat}]} {
+  if {![catch {exec qstat}]} {
     if {![catch {set stat [exec qstat -T | grep $::env(USER)]}]} {
-    } elseif {![catch {exec which point}]} {
+    } elseif {![catch {exec point}]} {
       set stat [exec point]
     } else {
       set stat [exec qstat]
@@ -155,29 +156,37 @@ proc Rashba {path nkpath lOrigin band numBand center direction convex} {
       }
     }
   }
+  set degeneratePoint -1
   if {$convex eq "downward"} {
     if {$center>$direction} {
       set eigen0 [lindex $kE($direction) end 1]
       for {set j [expr {[llength $kE($direction)]-2}]} {$j>=0} {incr j -1} {
 	set eigen [lindex $kE($direction) $j 1]
 	if {$eigen0<$eigen} {
-	  break
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j+1}]
+	  }
 	}
 	set eigen0 $eigen
       }
       if {$j>=0} {
-	set k_R [expr {([lindex $kE($direction) end 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
+	set k_R [expr {([lindex $kE($direction) $degeneratePoint 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
 	if {$numBand==1} {
-	  set E_R [expr {([lindex $kE($direction) end 1]-[lindex $kE($direction) [expr {$j+1}] 1])}]
+	  set E_R [expr {[lindex $kE($direction) $degeneratePoint 1]-[lindex $kE($direction) [expr {$j+1}] 1]}]
 	} elseif {$numBand==2} {
-	  set E_R [expr {(([lindex $kE($direction) end 1]+[lindex $kEInner1($direction) end 1])*0.5-[lindex $kE($direction) [expr {$j+1}] 1])}]
+	  set E_R [expr {([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1])*0.5-[lindex $kE($direction) [expr {$j+1}] 1]}]
 	} else {
-	  set E_R [expr {(([lindex $kE($direction) end 1]+[lindex $kEInner1($direction) end 1]+[lindex $kEInner2($direction) end 1]+[lindex $kEInner3($direction) end 1])*0.25-([lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kE($direction) [expr {$j+1}] 1])*0.5)}]
+	  set E_R [expr {([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1]+[lindex $kEInner2($direction) $degeneratePoint 1]+[lindex $kEInner3($direction) $degeneratePoint 1])*0.25-([lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kE($direction) [expr {$j+1}] 1])*0.5}]
 	}
 	set alpha_R [expr {2*$E_R/$k_R}]
 	puts "k_R = $k_R"
 	puts "E_R = $E_R"
 	puts "alpha_R = $alpha_R"
+	puts "minimum: [lindex $kE($direction) [expr {$j+1}] 1]"
       }
     } else {
       set eigen0 [lindex $kE($center) 0 1]
@@ -185,23 +194,30 @@ proc Rashba {path nkpath lOrigin band numBand center direction convex} {
       for {set j 1} {$j<$n} {incr j} {
 	set eigen [lindex $kE($center) $j 1]
 	if {$eigen0<$eigen} {
-	  break
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j-1}]
+	  }
 	}
 	set eigen0 $eigen
       }
       if {$j<$n} {
-	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) 0 0])/$Bohr2Angstrom}]
+	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) $degeneratePoint 0])/$Bohr2Angstrom}]
 	if {$numBand==1} {
-	  set E_R [expr {[lindex $kE($center) 0 1]-[lindex $kE($center) [expr {$j-1}] 1]}]
+	  set E_R [expr {[lindex $kE($center) $degeneratePoint 1]-[lindex $kE($center) [expr {$j-1}] 1]}]
 	} elseif {$numBand==2} {
-	  set E_R [expr {([lindex $kE($center) 0 1]+[lindex $kEInner1($center) 0 1])*0.5-[lindex $kE($center) [expr {$j-1}] 1]}]
+	  set E_R [expr {([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1])*0.5-[lindex $kE($center) [expr {$j-1}] 1]}]
 	} else {
-	  set E_R [expr {([lindex $kE($center) 0 1]+[lindex $kEInner1($center) 0 1]+[lindex $kEInner2($center) 0 1]+[lindex $kEInner3($center) 0 1])*0.25-([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kE($center) [expr {$j-1}] 1])*0.5}]
+	  set E_R [expr {([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1]+[lindex $kEInner2($center) $degeneratePoint 1]+[lindex $kEInner3($center) $degeneratePoint 1])*0.25-([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kE($center) [expr {$j-1}] 1])*0.5}]
 	}
 	set alpha_R [expr {2*$E_R/$k_R}]
 	puts "k_R = $k_R"
 	puts "E_R = $E_R"
 	puts "alpha_R = $alpha_R"
+	puts "minimum: [lindex $kE($center) [expr {$j-1}] 1]"
       }
     }
   } else {
@@ -210,17 +226,30 @@ proc Rashba {path nkpath lOrigin band numBand center direction convex} {
       for {set j [expr {[llength $kE($direction)]-2}]} {$j>=0} {incr j -1} {
 	set eigen [lindex $kE($direction) $j 1]
 	if {$eigen0>$eigen} {
-	  break
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j+1}]
+	  }
 	}
 	set eigen0 $eigen
       }
       if {$j>=0} {
-	set k_R [expr {([lindex $kE($direction) end 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
-	set E_R [expr {[lindex $kE($direction) [expr {$j+1}] 1]-[lindex $kE($direction) end 1]}]
+	set k_R [expr {([lindex $kE($direction) $degeneratePoint 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {[lindex $kE($direction) [expr {$j+1}] 1]-[lindex $kE($direction) $degeneratePoint 1]}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {[lindex $kE($direction) [expr {$j+1}] 1]-([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1])*0.5}]
+	} else {
+	  set E_R [expr {([lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kEInner1($direction) [expr {$j+1}] 1])*0.5-([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1]+[lindex $kEInner2($direction) $degeneratePoint 1]+[lindex $kEInner3($direction) $degeneratePoint 1])*0.25}]
+	}
 	set alpha_R [expr {2*$E_R/$k_R}]
 	puts "k_R = $k_R"
 	puts "E_R = $E_R"
 	puts "alpha_R = $alpha_R"
+	puts "maximum: [lindex $kE($direction) [expr {$j+1}] 1]"
       }
     } else {
       set eigen0 [lindex $kE($center) 0 1]
@@ -228,23 +257,30 @@ proc Rashba {path nkpath lOrigin band numBand center direction convex} {
       for {set j 1} {$j<$n} {incr j} {
 	set eigen [lindex $kE($center) $j 1]
 	if {$eigen0>$eigen} {
-	  break
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j-1}]
+	  }
 	}
 	set eigen0 $eigen
       }
       if {$j<$n} {
-	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) 0 0])/$Bohr2Angstrom}]
+	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) $degeneratePoint 0])/$Bohr2Angstrom}]
 	if {$numBand==1} {
-	  set E_R [expr {[lindex $kE($center) [expr {$j-1}] 1]-[lindex $kE($center) 0 1]}]
+	  set E_R [expr {[lindex $kE($center) [expr {$j-1}] 1]-[lindex $kE($center) $degeneratePoint 1]}]
 	} elseif {$numBand==2} {
-	  set E_R [expr {([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kEInner1($center) [expr {$j-1}] 1])*0.5-[lindex $kE($center) 0 1]}]
+	  set E_R [expr {[lindex $kE($center) [expr {$j-1}] 1]-([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1])*0.5}]
 	} else {
-	  set E_R [expr {([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kEInner1($center) [expr {$j-1}] 1])*0.5-([lindex $kE($center) 0 1]+[lindex $kEInner1($center) 0 1]+[lindex $kEInner2($center) 0 1]+[lindex $kEInner3($center) 0 1])*0.25}]
+	  set E_R [expr {([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kEInner1($center) [expr {$j-1}] 1])*0.5-([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1]+[lindex $kEInner2($center) $degeneratePoint 1]+[lindex $kEInner3($center) $degeneratePoint 1])*0.25}]
 	}
 	set alpha_R [expr {2*$E_R/$k_R}]
 	puts "k_R = $k_R"
 	puts "E_R = $E_R"
 	puts "alpha_R = $alpha_R"
+	puts "maximum: [lindex $kE($center) [expr {$j-1}] 1]"
       }
     }
   }
@@ -542,7 +578,22 @@ proc band {} {
       set txtPlot $txt
     } elseif {$numLine==10} {
       if {$bandgnuAE} {
-	puts $p "  se term $bandgnuExport enhanced color $fontSize"
+	if {$bandgnuExport eq "postscript eps"} {
+	  set bandgnuOption "enhanced color $fontSize"
+	} elseif {$bandgnuExport eq "pdfcairo"} {
+	  set bandgnuOption "font ', $fontSize'"
+	} elseif {$bandgnuExport eq "pdf"} {
+	  set bandgnuOption "font ', $fontSize'"
+	} elseif {$bandgnuExport eq "pngcairo"} {
+	  set bandgnuOption "font '' $fontSize"
+	} elseif {$bandgnuExport eq "png"} {
+	  set bandgnuOption "font '' $fontSize"
+	} elseif {$bandgnuExport eq "jpeg"} {
+	} elseif {$bandgnuExport eq "svg"} {
+	} elseif {$bandgnuExport eq "emf"} {
+	} elseif {$bandgnuExport eq "gif"} {
+	}
+	puts $p "  se term $bandgnuExport $bandgnuOption"
 	puts $p "  se ou '$path.eps'"
 	puts $p $txtPlot
 	puts $p "  se term $terminal"
@@ -570,10 +621,23 @@ proc band {} {
       set filetype \[file extension \$tmp]
       if {\$filetype eq \".eps\"} {
       set bandgnuExport {postscript eps}
+      set bandgnuOption \"enhanced color \$fontSize\"
       } elseif {\$filetype eq \".pdf\"} {
+      if {$gnuplotVersion>=4.4} {
+      set bandgnuExport pdfcairo
+      set bandgnuOption \"font '' \$fontSize\"
+      } else {
       set bandgnuExport pdf
+      set bandgnuOption \"font '' \$fontSize\"
+      }
       } elseif {\$filetype eq \".png\"} {
+      if {$gnuplotVersion>=4.4} {
+      set bandgnuExport pngcairo
+      set bandgnuOption \"font '' \$fontSize\"
+      } else {
       set bandgnuExport png
+      set bandgnuOption \"font '' \$fontSize\"
+      }
       } elseif {\$filetype eq \".jpeg\"} {
       set bandgnuExport jpeg
       } elseif {\$filetype eq \".svg\"} {
@@ -586,7 +650,7 @@ proc band {} {
       eval \[exec gnuplot << \"
       \ \ se term \$bandgnuExport
       \"\]
-      puts $p \"  se term \$bandgnuExport enhanced color \$fontSize\"
+      puts $p \"  se term \$bandgnuExport \$bandgnuOption\"
       puts $p \"  se ou '\$tmp'\"
       puts $p \"  rep\"
       puts $p \"  se term $terminal\"
@@ -1029,7 +1093,11 @@ proc openOption {} {
       grab set .tOption.tbandgnu.tExport
       labelframe .tOption.tbandgnu.tExport.lfExport -text "Export Format"
       listbox .tOption.tbandgnu.tExport.lfExport.lb
-      .tOption.tbandgnu.tExport.lfExport.lb insert end "postscript eps" pdf png jpeg svg emf gif
+      if {$gnuplotVersion>=4.4} {
+	.tOption.tbandgnu.tExport.lfExport.lb insert end "postscript eps" pdfcairo pngcairo jpeg svg emf gif
+      } else {
+	.tOption.tbandgnu.tExport.lfExport.lb insert end "postscript eps" pdf png jpeg svg emf gif
+      }
       button .tOption.tbandgnu.tExport.bClose -text Close -command {
 	if {[.tOption.tbandgnu.tExport.lfExport.lb curselection] ne ""} {
 	  set bandgnuExport [.tOption.tbandgnu.tExport.lfExport.lb get [.tOption.tbandgnu.tExport.lfExport.lb curselection]]
@@ -1538,7 +1606,7 @@ button .bInfo -text Info -command {
   toplevel .tInfo
   wm title .tInfo Info
   grab set .tInfo
-  label .tInfo.lVersion -text "OMXTool Ver. 1.5.8 Copyright (C), 2015-2017, Naoya Yamaguchi."
+  label .tInfo.lVersion -text "OMXTool Ver. 1.5.9 Copyright (C), 2015-2017, Naoya Yamaguchi."
   button .tInfo.bClose -text Close -command {
     destroy .tInfo
   }
