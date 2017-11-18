@@ -1,7 +1,5 @@
 #!/bin/sh
-#\
-exec wish "$0" ${1+"$@"}
-#@(#) OMXTool Ver. 1.5 - graphical utility tool for OpenMX.
+#@(#) OMXTool Ver. beta-2 - graphical utility tool for OpenMX.
 #@(#) Copyright (C), 2015-2017, Naoya Yamaguchi.
 #@(#) This software includes the work that is distributed
 #@(#) in version 3 of the GPL (GPLv3).
@@ -40,6 +38,7 @@ exec wish "$0" ${1+"$@"}
 #@(#)    2017/08/11 Ver. 1.5.7 Modified by Naoya Yamaguchi.
 #@(#)    2017/08/20 Ver. 1.5.8 Modified by Naoya Yamaguchi.
 #@(#)    2017/09/26 Ver. 1.5.9 Modified by Naoya Yamaguchi.
+#@(#)    2017/11/18 Ver. beta-2 Written by Naoya Yamaguchi.
 #@(#)
 #@(#) Usage:
 #@(#)    ./omxtool (&)
@@ -47,12 +46,2213 @@ exec wish "$0" ${1+"$@"}
 #@(#) Description:
 #@(#)    This script provides graphical utilities for OpenMX.
 #@(#)
+#\
+case `ps -o stat= -p $$` in
+#\
+*+*) ;;
+#\
+*) exec wish "$0" "wish" ${2+"$@"};;
+#\
+esac
+#\
+if which expect > /dev/null 2>&1 && which screen > /dev/null 2>&1
+#\
+then
+#\
+exec expect "$0" "expect" ${2+"$@"}
+#\
+fi
+#\
+exec wish "$0" "wish" ${2+"$@"}
 
 package require Tk
+set tclsh [lindex $argv 0]
+if {$tclsh eq "expect"} {
+  package require Expect
+}
+proc clear {} {
+  puts "\x1b\[2J"
+}
+proc what {fname} {
+  set fp [open $fname r]
+  set mark @(#)
+  while {[gets $fp data]>=0} {
+    set first 0
+    set last1 0
+    set last2 0
+    set length [string length $data]
+    while {$first!=-1} {
+      set first [string first $mark $data $first]
+      if {$last1!=-1} {
+	set last1 [string first \" $data $first]
+      }
+      if {$last2!=-1} {
+	set last2 [string first > $data $first]
+      }
+      if {$last1==-1} {
+	set last1 $length
+      }
+      if {$last2==-1} {
+	set last2 $length
+      }
+      set last [expr $last1<$last2 ? $last1 : $last2]
+      if {$first!=-1} {
+	append buffer "\n[string range $data [expr $first+4] [expr $last-1]]"
+      }
+      if {$first!=-1} {
+	set first [expr $last+1]
+      }
+    }
+  }
+  return $buffer
+}
+proc quit {} {
+  global tclsh
+  if {$tclsh eq "expect"} {
+    clear
+  }
+  exit
+}
+proc trimControl {arg} {
+  if {[string is graph -failindex pos $arg]} {
+    return $arg
+  } else {
+    return [string range $arg 0 [expr {$pos-1}]]
+  }
+}
+proc tildeSlash2Home {path} {
+  global env
+  if {[string first ~/ $path] == 0} {
+    set path $env(HOME)/[string range $path 2 end]
+  }
+  return $path
+}
+proc getpage {keyword} {
+  scan $keyword {%[^.].%[^.]} p1 p2
+  switch -nocase $p1 {
+    System -
+    DATA -
+    level {
+      return System
+    }
+    Species -
+    Definition {
+      return Species
+    }
+    Atoms {
+      if {[string equal -nocase $p2 Cont]} {
+	return OrbitalOpt
+      } else {
+	return Atoms
+      }
+    }
+    scf {
+      if {[string equal -nocase $p2 restart]} {
+	return Other
+      } else {
+	return SCF
+      }
+    }
+    ESM -
+    Hubbard {
+      return SCF
+    }
+    1DFFT {
+      return 1DFFT
+    }
+    orbitalOpt -
+    CntOrb -
+    Num {
+      if {[string equal -nocase $p2 CntOrb]} {
+	return OrbitalOpt
+      } else {
+	return MO
+      }
+    }
+    orderN {
+      return OrderN
+    }
+    MD -
+    NH {
+      return MD
+    }
+    Band {
+      return Band
+    }
+    MO {
+      return MO
+    }
+    Dos {
+      return DOS
+    }
+    HS {
+      return Other
+    }
+    Voronoi {
+      return Voronoi
+    }
+  }
+}
+proc PAOVPS {species} {
+  switch $species {
+    H {return "H6.0-s2p1        H_PBE13      1.0"}
+    He {return "He8.0-s2p1       He_PBE13     2.0"}
+    Li {return "Li8.0-s3p2       Li_PBE13     3.0"}
+    Be {return "Be7.0-s3p2       Be_PBE13     2.0"}
+    B {return "B7.0-s2p2d1      B_PBE13      3.0"}
+    C {return "C6.0-s2p2d1      C_PBE13      4.0"}
+    N {return "N6.0-s2p2d1      N_PBE13      5.0"}
+    O {return "O6.0-s2p2d1      O_PBE13      6.0"}
+    F {return "F6.0-s2p2d1      F_PBE13      7.0"}
+    Ne {return "Ne9.0-s2p2d1     Ne_PBE13     8.0"}
+    Na {return "Na9.0-s3p2d1     Na_PBE13     9.0"}
+    Mg {return "Mg9.0-s3p2d2     Mg_PBE13     8.0"}
+    Al {return "Al7.0-s2p2d1     Al_PBE13     3.0"}
+    Si {return "Si7.0-s2p2d1     Si_PBE13     4.0"}
+    P {return "P7.0-s2p2d1f1    P_PBE13      5.0"}
+    S {return "S7.0-s2p2d1f1    S_PBE13      6.0"}
+    Cl {return "Cl7.0-s2p2d1f1   Cl_PBE13     7.0"}
+    Ar {return "Ar9.0-s2p2d1f1   Ar_PBE13     8.0"}
+    K {return "K10.0-s3p2d1     K_PBE13      9.0"}
+    Ca {return "Ca9.0-s3p2d1     Ca_PBE13    10.0"}
+    Sc {return "Sc9.0-s3p2d1     Sc_PBE13    11.0"}
+    Ti {return "Ti7.0-s3p2d1     Ti_PBE13    12.0"}
+    V {return "V6.0-s3p2d1      V_PBE13     13.0"}
+    Cr {return "Cr6.0-s3p2d1     Cr_PBE13    14.0"}
+    Mn {return "Mn6.0-s3p2d1     Mn_PBE13    15.0"}
+    Fe {return "Fe6.0H-s3p2d1    Fe_PBE13H   16.0"}
+    Co {return "Co6.0H-s3p2d1    Co_PBE13H   17.0"}
+    Ni {return "Ni6.0H-s3p2d1    Ni_PBE13H   18.0"}
+    Cu {return "Cu6.0H-s3p2d1    Cu_PBE13H   19.0"}
+    Zn {return "Zn6.0H-s3p2d1    Zn_PBE13H   20.0"}
+    Ga {return "Ga7.0-s3p2d2     Ga_PBE13    13.0"}
+    Ge {return "Ge7.0-s3p2d2     Ge_PBE13     4.0"}
+    As {return "As7.0-s3p2d2     As_PBE13    15.0"}
+    Se {return "Se7.0-s3p2d2     Se_PBE13     6.0"}
+    Br {return "Br7.0-s3p2d2     Br_PBE13     7.0"}
+    Kr {return "Kr10.0-s3p2d2    Kr_PBE13     8.0"}
+    Rb {return "Rb11.0-s3p2d2    Rb_PBE13     9.0"}
+    Sr {return "Sr10.0-s3p2d2    Sr_PBE13    10.0"}
+    Y {return "Y10.0-s3p2d2     Y_PBE13     11.0"}
+    Zr {return "Zr7.0-s3p2d2     Zr_PBE13    12.0"}
+    Nb {return "Nb7.0-s3p2d2     Nb_PBE13    13.0"}
+    Mo {return "Mo7.0-s3p2d2     Mo_PBE13    14.0"}
+    Tc {return "Tc7.0-s3p2d2     Tc_PBE13    15.0"}
+    Ru {return "Ru7.0-s3p2d2     Ru_PBE13    14.0"}
+    Rh {return "Rh7.0-s3p2d2     Rh_PBE13    15.0"}
+    Pd {return "Pd7.0-s3p2d2     Pd_PBE13    16.0"}
+    Ag {return "Ag7.0-s3p2d2     Ag_PBE13    17.0"}
+    Cd {return "Cd7.0-s3p2d2     Cd_PBE13    12.0"}
+    In {return "In7.0-s3p2d2     In_PBE13    13.0"}
+    Sn {return "Sn7.0-s3p2d2     Sn_PBE13    14.0"}
+    Sb {return "Sb7.0-s3p2d2     Sb_PBE13    15.0"}
+    Te {return "Te7.0-s3p2d2f1   Te_PBE13    16.0"}
+    I {return "I7.0-s3p2d2f1    I_PBE13      7.0"}
+    Xe {return "Xe11.0-s3p2d2    Xe_PBE13     8.0"}
+    Cs {return "Cs12.0-s3p2d2    Cs_PBE13     9.0"}
+    Ba {return "Ba10.0-s3p2d2    Ba_PBE13    10.0"}
+    La {return "La8.0-s3p2d2f1   La_PBE13    11.0"}
+    Ce {return "Ce8.0-s3p2d2f1   Ce_PBE13    12.0"}
+    Pr {return "Pr8.0-s3p2d2f1   Pr_PBE13    13.0"}
+    Nd {return "Nd8.0-s3p2d2f1   Nd_PBE13    14.0"}
+    Pm {return "Pm8.0-s3p2d2f1   Pm_PBE13    15.0"}
+    Sm {return "Sm8.0-s3p2d2f1   Sm_PBE13    16.0"}
+    Eu {return "Eu8.0-s3p2d2f1   Eu_PBE13    17.0"}
+    Gd {return "Gd8.0-s3p2d2f1   Gd_PBE13    18.0"}
+    Tb {return "Tb8.0-s3p2d2f1   Tb_PBE13    19.0"}
+    Dy {return "Dy8.0-s3p2d2f1   Dy_PBE13    20.0"}
+    Ho {return "Ho8.0-s3p2d2f1   Ho_PBE13    21.0"}
+    Er {return "Er8.0-s3p2d2f1   Er_PBE13    22.0"}
+    Tm {return "Tm8.0-s3p2d2f1   Tm_PBE13    23.0"}
+    Yb {return "Yb8.0-s3p2d2f1   Yb_PBE13    24.0"}
+    Lu {return "Lu8.0-s3p2d2f1   Lu_PBE13    11.0"}
+    Hf {return "Hf9.0-s3p2d2     Hf_PBE13    12.0"}
+    Ta {return "Ta7.0-s3p2d2     Ta_PBE13    13.0"}
+    W {return "W7.0-s3p2d2      W_PBE13     12.0"}
+    Re {return "Re7.0-s3p2d2     Re_PBE13    15.0"}
+    Os {return "Os7.0-s3p2d2     Os_PBE13    14.0"}
+    Ir {return "Ir7.0-s3p2d2     Ir_PBE13    15.0"}
+    Pt {return "Pt7.0-s3p2d2     Pt_PBE13    16.0"}
+    Au {return "Au7.0-s3p2d2     Au_PBE13    17.0"}
+    Hg {return "Hg8.0-s3p2d2f1   Hg_PBE13    18.0"}
+    Tl {return "Tl8.0-s3p2d2f1   Tl_PBE13    19.0"}
+    Pb {return "Pb8.0-s3p2d2f1   Pb_PBE13    14.0"}
+    Bi {return "Bi8.0-s3p2d2f1   Bi_PBE13    15.0"}
+    84 {return "undefined                    0.0"}
+    85 {return "undefined                    0.0"}
+    86 {return "undefined                    0.0"}
+    87 {return "undefined                    0.0"}
+    88 {return "undefined                    0.0"}
+    89 {return "undefined                    0.0"}
+    90 {return "undefined                    0.0"}
+    91 {return "undefined                    0.0"}
+    92 {return "undefined                    0.0"}
+    93 {return "undefined                    0.0"}
+    94 {return "undefined                    0.0"}
+    95 {return "undefined                    0.0"}
+    96 {return "undefined                    0.0"}
+    97 {return "undefined                    0.0"}
+    98 {return "undefined                    0.0"}
+    99 {return "undefined                    0.0"}
+    100 {return "undefined                   0.0"}
+    101 {return "undefined                   0.0"}
+    102 {return "undefined                   0.0"}
+    103 {return "undefined                   0.0"}
+  }
+}
+proc speciesColor {species} {
+  switch $species {
+    H {return  #FAF0E6}
+    He {return #F0E68C}
+    Li {return #EE82EE}
+    Be {return #DB7093}
+    B {return  #4B0082}
+    C {return  #778899}
+    N {return  #0000FF}
+    O {return  #FC0000}
+    F {return  #00FF00}
+    Ne {return #FF00FF}
+    Na {return #48D1CC}
+    Mg {return #8B008B}
+    Al {return #D8BFD8}
+    Si {return #00CED1}
+    P {return  #DC143C}
+    S {return  #FFFF00}
+    Cl {return #66CDAA}
+    Ar {return #FF69B4}
+    K {return  #ADD8E6}
+    Ca {return #2F4F4F}
+    Sc {return #483D8B}
+    Ti {return #8B708B}
+    V {return  #008080}
+    Cr {return #B22222}
+    Mn {return #800080}
+    Fe {return #BC8F8F}
+    Co {return #40E0D0}
+    Ni {return #66CDAA}
+    Cu {return #D2691E}
+    Zn {return #BC8F8F}
+    Ga {return #F08080}
+    Ge {return #E6E6FA}
+    As {return #DAA520}
+    Se {return #c4a3bf}
+    Br {return #b44c97}
+    Kr {return #00a497}
+    Rb {return #b77b57}
+    Sr {return #006e54}
+    Y {return  #d69090}
+    Zr {return #634950}
+    Nb {return #44617b}
+    Mo {return #E9967A}
+    Tc {return #FF7F50}
+    Ru {return #FFA07A}
+    Rh {return #A0522D}
+    Pd {return #FFE4C4}
+    Ag {return #C0C0C0}
+    Cd {return #BDB76B}
+    In {return #6B8E23}
+    Sn {return #556B2F}
+    Sb {return #ADFF2F}
+    Te {return #008000}
+    I {return  #40E0D0}
+    Xe {return #7FFFD4}
+    Cs {return #008080}
+    Ba {return #00FFFF}
+    La {return #999900}
+    Ce {return #4682B4}
+    Pr {return #4169E1}
+    Nd {return #7B68EE}
+    Pm {return #8A2BE2}
+    Sm {return #BA55D3}
+    Eu {return #800080}
+    Gd {return #FF1493}
+    Tb {return #c89932}
+    Dy {return #5c9291}
+    Ho {return #9d5b8b}
+    Er {return #eeeaec}
+    Tm {return #e29676}
+    Yb {return #5f6527}
+    Lu {return #c70067}
+    Hf {return #e9dacb}
+    Ta {return #28ff93}
+    W {return  #0582ff}
+    Re {return #baff75}
+    Os {return #43676b}
+    Ir {return #47585c}
+    Pt {return #c4a3bf}
+    Au {return #FFD700}
+    Hg {return #dcd6d9}
+    Tl {return #bf794e}
+    Pb {return #f5b1aa}
+    Bi {return #cd5e3c}
+    Po {return #95859c}
+    At {return #71686c}
+    Rn {return #203744}
+    Fr {return #ec6d71}
+    Ra {return #b55233}
+    Ac {return #a19361}
+    Th {return #cc3399}
+    Pa {return #3399cc}
+    U {return  #339966}
+    Np {return #ffff00}
+    Pu {return #ccff33}
+    Am {return #cc3300}
+    Cm {return #cc6600}
+    Bk {return #ff0033}
+    Cf {return #660066}
+    Es {return #006666}
+    Fm {return #ffcc00}
+    Md {return #33cccc}
+    No {return #99ffff}
+    Lr {return #ff6666}
+  }
+}
+proc speciesRadius {species} {
+  switch $species {
+    H {return "0.53 0.25"}
+    He {return "0.31 0.31"}
+    Li {return "1.67 1.45"}
+    Be {return "1.12 1.05"}
+    B {return "0.87 0.85"}
+    C {return "0.67 0.70"}
+    N {return "0.56 0.65"}
+    O {return "0.48 0.60"}
+    F {return "0.42 0.50"}
+    Ne {return "0.38 0.38"}
+    Na {return "1.90 1.80"}
+    Mg {return "1.45 1.50"}
+    Al {return "1.18 1.25"}
+    Si {return "1.11 1.10"}
+    P {return "0.98 1.00"}
+    S {return "0.88 1.00"}
+    Cl {return "0.79 1.00"}
+    Ar {return "0.71 0.71"}
+    K {return "2.43 2.20"}
+    Ca {return "1.94 1.80"}
+    Sc {return "1.84 1.60"}
+    Ti {return "1.76 1.40"}
+    V {return "1.71 1.35"}
+    Cr {return "1.66 1.40"}
+    Mn {return "1.61 1.40"}
+    Fe {return "1.56 1.40"}
+    Co {return "1.52 1.35"}
+    Ni {return "1.49 1.35"}
+    Cu {return "1.45 1.35"}
+    Zn {return "1.42 1.35"}
+    Ga {return "1.36 1.30"}
+    Ge {return "1.25 1.25"}
+    As {return "1.14 1.15"}
+    Se {return "1.03 1.15"}
+    Br {return "0.94 1.15"}
+    Kr {return "0.88 0.88"}
+    Rb {return "2.65 2.35"}
+    Sr {return "2.19 2.00"}
+    Y {return "2.12 1.85"}
+    Zr {return "2.06 1.55"}
+    Nb {return "1.98 1.45"}
+    Mo {return "1.90 1.45"}
+    Tc {return "1.83 1.35"}
+    Ru {return "1.78 1.30"}
+    Rh {return "1.73 1.35"}
+    Pd {return "1.69 1.40"}
+    Ag {return "1.65 1.60"}
+    Cd {return "1.61 1.55"}
+    In {return "1.56 1.55"}
+    Sn {return "1.45 1.45"}
+    Sb {return "1.33 1.45"}
+    Te {return "1.23 1.40"}
+    I {return "1.15 1.40"}
+    Xe {return "1.08 1.08"}
+    Cs {return "2.98 2.60"}
+    Ba {return "2.53 2.15"}
+    La {return "1.95 1.95"}
+    Ce {return "1.85 1.85"}
+    Pr {return "2.47 1.85"}
+    Nd {return "2.06 1.85"}
+    Pm {return "2.05 1.85"}
+    Sm {return "2.38 1.85"}
+    Eu {return "2.31 1.85"}
+    Gd {return "2.33 1.80"}
+    Tb {return "2.25 1.75"}
+    Dy {return "2.28 1.75"}
+    Ho {return "2.26 1.75"}
+    Er {return "2.26 1.75"}
+    Tm {return "2.22 1.75"}
+    Yb {return "2.22 1.75"}
+    Lu {return "2.17 1.75"}
+    Hf {return "2.08 1.55"}
+    Ta {return "2.00 1.45"}
+    W {return "1.93 1.35"}
+    Re {return "1.88 1.35"}
+    Os {return "1.85 1.30"}
+    Ir {return "1.80 1.35"}
+    Pt {return "1.77 1.35"}
+    Au {return "1.74 1.35"}
+    Hg {return "1.71 1.50"}
+    Tl {return "1.56 1.90"}
+    Pb {return "1.54 1.80"}
+    Bi {return "1.43 1.60"}
+    Po {return "1.35 1.90"}
+    At {return "1.27 1.27"}
+    Rn {return "1.20 1.20"}
+    default {return "1.0 1.0"}
+  }
+}
+proc convpath {path} {
+  set pathtype relative
+  if {$pathtype == "relative"} {
+    set target [file split $path]
+    set workdir [file split [pwd]]
+    foreach telement $target welement $workdir {
+      if {$telement != $welement} {
+	regsub .* $welement .. welement
+	lappend split $telement
+	set split [linsert $split 0 $welement]
+      }
+    }
+    if {![info exists split]} {
+      set split ./
+    }
+    set split [eval concat $split]
+    return [join $split /]
+  }
+  return $path
+}
+proc getpath {value} {
+  set path [tk_chooseDirectory -initialdir $::WD -title "Select Directory"]
+  if {$path != ""} {
+    return [convpath $path]
+  }
+  return $value
+}
+proc descendant {parent} {
+  while 1 {
+    set children [winfo children $parent]
+    set numChildren [llength $children]
+    if {$numChildren} {
+      set parent [lindex $children 0]
+    } else {
+      return $parent
+      break
+    }
+  }
+}
+proc import_cif {argv} {
+  set fp [open [lindex $argv 0] r]
+  set is_there_cif_tag no
+  set loop_mode off
+  set loop_list ""
+  set loop2_mode off
+
+  while {[gets $fp data]>=0} {
+    if {![string length $data]} {
+      set loop_list ""
+      set loop_mode off
+      continue
+    }
+    if {[string equal _ [string index [lindex $data 0] 0]]} {
+      if {$loop2_mode} {
+	set loop_list ""
+	set loop_mode off
+	set loop2_mode off
+      }
+      set is_there_cif_tag yes
+      set cif_tag [lindex $data 0]
+    }
+    regsub {'.*'} $data {{&}} data
+    if {[string equal loop_ [lindex $data 0]]} {
+      if {$loop2_mode} {
+	set loop_list ""
+	set loop_mode off
+	set loop2_mode off
+      }
+      set loop_mode on
+      set loop_list ""
+      continue
+    }
+    if {$is_there_cif_tag} {
+      global $cif_tag
+      if {!$loop_mode} {
+	set $cif_tag [lrange $data 1 end]
+	set loop_list ""
+      } else {
+	set $cif_tag ""
+	lappend loop_list $cif_tag
+      }
+      set is_there_cif_tag no
+    } elseif {$loop_mode} {
+      foreach cif_tag $loop_list cif_val $data {
+	lappend $cif_tag $cif_val
+      }
+      set loop2_mode on
+    }
+  }
+}
+proc compareCmd {a b} {
+  set ax [lindex $a 1]
+  set ay [lindex $a 2]
+  set az [lindex $a 3]
+  set bx [lindex $b 1]
+  set by [lindex $b 2]
+  set bz [lindex $b 3]
+  set dx [expr $ax-$bx]
+  set dy [expr $ay-$by]
+  set dz [expr $az-$bz]
+  if {$dx*$dx+$dy*$dy+$dz*$dz<=1e-6} {
+    return 0
+  } elseif {$az>=$bz} {
+    return 1
+  } else {
+    return -1
+  }
+}
+proc cif2dat {argv} {
+  import_cif $argv
+  set deg2rad [expr {atan2(1, 1)/45}]
+  set alpha [expr {$::_cell_angle_alpha*$deg2rad}]
+  set beta [expr {$::_cell_angle_beta*$deg2rad}]
+  set gamma [expr {$::_cell_angle_gamma*$deg2rad}]
+  set ax $::_cell_length_a
+  set bx [expr {$::_cell_length_b*cos($gamma)}]
+  set by [expr {$::_cell_length_b*sin($gamma)}]
+  set cx [expr {$::_cell_length_c*cos($beta)}]
+  set cy [expr {($::_cell_length_b*$::_cell_length_c*cos($alpha)-$bx*$cx)/$by}]
+  set cz [expr {sqrt($::_cell_length_c*$::_cell_length_c-$cx*$cx-$cy*$cy)}]
+  set ::Atoms.UnitVectors ""
+  lappend ::Atoms.UnitVectors [format "%s %11.6f %11.6f %11.6f" a $ax 0 0]
+  lappend ::Atoms.UnitVectors [format "%s %11.6f %11.6f %11.6f" b $bx $by 0]
+  lappend ::Atoms.UnitVectors [format "%s %11.6f %11.6f %11.6f" c $cx $cy $cz]
+
+  foreach atom $::_atom_site_type_symbol x $::_atom_site_fract_x y $::_atom_site_fract_y z $::_atom_site_fract_z {
+    foreach symm $::_symmetry_equiv_pos_as_xyz {
+      regsub '(.*)' $symm {\1} symm
+      set symm [split [string trim [string map {x $x y $y z $z / ./ " " ""} $symm]] ,]
+      foreach "xpos ypos zpos" $symm {
+	set xt [expr $xpos]
+	set yt [expr $ypos]
+	set zt [expr $zpos]
+	set xt [expr {$xt-floor($xt)}]
+	set yt [expr {$yt-floor($yt)}]
+	set zt [expr {$zt-floor($zt)}]
+	lappend ::Atoms.SpeciesAndCoordinates [format "%4s %11.6f %11.6f %11.6f" $atom $xt $yt $zt]
+      }
+    }
+  }
+  set ::Atoms.SpeciesAndCoordinates [lsort -index 1 [lsort -unique -command compareCmd ${::Atoms.SpeciesAndCoordinates}]]
+}
+proc gradient {image relief light source R G B} {
+  set sunken [string match sun* $relief]
+  set light [expr {$light*96+32}]
+  set source [expr {0.5+$source/2.0}]
+  set D [image width $image]
+  set r [expr {$D/2}]
+  set r2 [expr {$r*$r}]
+  for {set y 0} {$y<$D} {incr y} {
+    set Dy [expr {$y-$r}]
+    set Dy2 [expr {$Dy*$Dy}]
+    set dy [expr {$y*$source-$r}]
+    set dy2 [expr {$dy * $dy}]
+    for {set x 0} {$x<$D} {incr x} {
+      set Dx [expr {$x-$r}]
+      set Dx2 [expr {$Dx*$Dx}]
+      set Dxy [expr {$Dx2+$Dy2}]
+      if {$Dxy<=$r2} {
+	set dx [expr {$x*$source-$r}]
+	set dx2 [expr {$dx*$dx}]
+	set dz2 [expr {$r2-$dx2-$dy2}]
+	set color [expr {int(127+$light*$dz2/$r2)}]
+	if {$sunken} {
+	  set color [expr {int(127+$light*2-$color)}]
+	}
+	set Rtmp [expr {int($color*$R/255)}]
+	set Gtmp [expr {int($color*$G/255)}]
+	set Btmp [expr {int($color*$B/255)}]
+	set afterglow 0
+	if {$Rtmp>255} {
+	  incr afterglow [expr {$Rtmp-255}]
+	  set Rtmp 255
+	}
+	if {$Gtmp>255} {
+	  incr afterglow [expr {$Gtmp-255}]
+	  set Gtmp 255
+	}
+	if {$Btmp>255} {
+	  incr afterglow [expr {$Btmp-255}]
+	  set Btmp 255
+	}
+	while {$afterglow>0 && ($Rtmp!=255 || $Gtmp!=255 || $Btmp!=255)} {
+	  set afterglow [expr {$afterglow/3}]
+	  incr Rtmp $afterglow
+	  incr Gtmp $afterglow
+	  incr Btmp $afterglow
+	  set afterglow 0
+	  if {$Rtmp>255} {
+	    incr afterglow [expr {$Rtmp-255}]
+	    set Rtmp 255
+	  }
+	  if {$Gtmp>255} {
+	    incr afterglow [expr {$Gtmp-255}]
+	    set Gtmp 255
+	  }
+	  if {$Btmp>255} {
+	    incr afterglow [expr {$Btmp-255}]
+	    set Btmp 255
+	  }
+	}
+	set color [format "#%02x%02x%02x" $Rtmp $Gtmp $Btmp]
+	$image put $color -to [expr {$D-$x}]  [expr {$D-$y}]
+      }
+    }
+  }
+}
+proc drawXyzv {length WH WHHalf imageSize thetaY thetaX} {
+  set atomList ""
+  set xvSum 0
+  set yvSum 0
+  set i 0
+  foreach item [$::Atoms_SpeciesAndCoordinates.tv children ""] {
+    incr i
+    set asac [$::Atoms_SpeciesAndCoordinates.tv set $item]
+    # [format "%4d %s %11.6f %11.6f %11.6f %g %g" [lindex $asac 1] [lindex $asac 3] [lindex $asac 5] [lindex $asac 7] [lindex $asac 9] [lindex $asac 11] [lindex $asac 13]]
+    set xv [expr {[lindex ${::Atoms.UnitVectors} 0 1]*[lindex $asac 5]+[lindex ${::Atoms.UnitVectors} 1 1]*[lindex $asac 7]+[lindex ${::Atoms.UnitVectors} 2 1]*[lindex $asac 9]}]
+    set yv [expr {[lindex ${::Atoms.UnitVectors} 0 2]*[lindex $asac 5]+[lindex ${::Atoms.UnitVectors} 1 2]*[lindex $asac 7]+[lindex ${::Atoms.UnitVectors} 2 2]*[lindex $asac 9]}]
+    set zv [expr {[lindex ${::Atoms.UnitVectors} 0 3]*[lindex $asac 5]+[lindex ${::Atoms.UnitVectors} 1 3]*[lindex $asac 7]+[lindex ${::Atoms.UnitVectors} 2 3]*[lindex $asac 9]}]
+    set xv2 [expr {$xv*cos($thetaY)-$zv*sin($thetaY)}]
+    set zv2 [expr {$xv*sin($thetaY)+$zv*cos($thetaY)}]
+    set xv $xv2
+    set zv $zv2
+    set yv2 [expr {$yv*cos($thetaX)+$zv*sin($thetaX)}]
+    set zv2 [expr {-$yv*sin($thetaX)+$zv*cos($thetaX)}]
+    set yv $yv2
+    set zv $zv2
+    if {$::perspective} {
+      set xv [expr {$xv/(1+$zv/100.0)/$length*$WH}]
+    } else {
+      set xv [expr {$xv/$length*$WH}]
+    }
+    set xvSum [expr {$xvSum+$xv}]
+    if {$::perspective} {
+      set yv [expr {$yv/(1+$zv/100.0)/$length*$WH}]
+    } else {
+      set yv [expr {$yv/$length*$WH}]
+    }
+    set yvSum [expr {$yvSum+$yv}]
+    lappend atomList "[lindex $asac 1] [lindex $asac 3] $xv $yv $zv"
+  }
+  set atomList [lsort -real -decreasing -index 4 $atomList]
+  foreach item $atomList {
+    set xv [expr {[lindex $item 2]-$xvSum/${::Atoms.Number}+$WHHalf}]
+    set yv [expr {[lindex $item 3]-$yvSum/${::Atoms.Number}+$WHHalf}]
+    image create photo atom[lindex $item 0] -width $imageSize -height $imageSize
+    image create photo tmpImage -width [expr {$imageSize*$::magnification}] -height [expr {$imageSize*$::magnification}]
+    tmpImage copy [lindex $item 1] -zoom $::magnification
+    atom[lindex $item 0] copy tmpImage -shrink -subsample [expr {int($length)}]
+    .tInput.tView.c create image $xv $yv -image atom[lindex $item 0] -anchor nw
+  }
+}
+proc input {} {
+  toplevel .tInput
+  ttk::notebook .tInput.nb
+  frame .tInput.fb
+  button .tInput.fb.bCreate -text Create -command {
+    set dst [tk_getSaveFile -initialfile [file tail $::rPath].dat -filetypes {{{OpenMX Input File} {*.dat}}} -title "Save As"]
+    if {$dst eq ""} {
+      return
+    }
+    set fp [open $dst w]
+    foreach keyword $::keywords {
+      if {$keyword eq "Definition.of.Atomic.Species"} {
+	puts $fp <Definition.of.Atomic.Species
+	foreach item [::$Definition_of_Atomic_Species.tv children ""] {
+	  set doas [::$Definition_of_Atomic_Species.tv set $item]
+	  puts $fp [format "%s %s %s" [lindex $doas 1] [lindex $doas 3] [lindex $doas 5]]
+	}
+	puts $fp Definition.of.Atomic.Species>
+	continue
+      }
+      if {$keyword eq "Atoms.SpeciesAndCoordinates"} {
+	puts $fp <Atoms.SpeciesAndCoordinates
+	foreach item [::$Atoms_SpeciesAndCoordinates.tv children ""] {
+	  set asac [::$Atoms_SpeciesAndCoordinates.tv set $item]
+	  puts $fp [format "%4d %s %11.6f %11.6f %11.6f %g %g" [lindex $asac 1] [lindex $asac 3] [lindex $asac 5] [lindex $asac 7] [lindex $asac 9] [lindex $asac 11] [lindex $asac 13]]
+	}
+	puts $fp Atoms.SpeciesAndCoordinates>
+	continue
+      }
+      if {$keyword eq "Atoms.UnitVectors"} {
+	puts $fp <Atoms.UnitVectors
+	foreach vector ${::Atoms.UnitVectors} {
+	  puts $fp [format "%11.6f %11.6f %11.6f" [lindex $vector 1] [lindex $vector 2] [lindex $vector 3]]
+	}
+	puts $fp Atoms.UnitVectors>
+	continue
+      }
+      if {$keyword eq "Hubbard.U.values"} {
+	continue
+      }
+      if {$keyword eq "scf.Ngrid"} {
+	puts $fp "scf.Ngrid	${::scf.Ngrid(1)} ${::scf.Ngrid(2)} ${::scf.Ngrid(3)}"
+	continue
+      }
+      if {$keyword eq "scf.Kgrid"} {
+	puts $fp "scf.Kgrid	${::scf.Kgrid(1)} ${::scf.Kgrid(2)} ${::scf.Kgrid(3)}"
+	continue
+      }
+      if {$keyword eq "scf.Electric.Field"} {
+	puts $fp "scf.Electric.Field	${::scf.Electric.Field(1)} ${::scf.Electric.Field(2)} ${::scf.Electric.Field(3)}"
+	continue
+      }
+      eval puts $fp \"$keyword\	\$\{$keyword\}\"
+    }
+    close $fp
+  }
+  button .tInput.fb.bImport -text Import -command {
+    set path [tk_getOpenFile -initialdir $::WD -title "Import a CIF file" -filetypes {{{CIF (Crystallographic Information File)} {*.cif}}}]
+    if {$path ne ""} {
+      toplevel .tInput.tSC
+      grab set .tInput.tSC
+      entry .tInput.tSC.eX -textvariable SCX
+      entry .tInput.tSC.eY -textvariable SCY
+      entry .tInput.tSC.eZ -textvariable SCZ
+      set SCX 1
+      set SCY 1
+      set SCZ 1
+      button .tInput.tSC.bSubmit -text Submit -command {
+	destroy .tInput.tSC
+	set ::Atoms.SpeciesAndCoordinates ""
+	set speciesList ""
+	::$Atoms_SpeciesAndCoordinates.tv delete [::$Atoms_SpeciesAndCoordinates.tv children ""]
+	::$Definition_of_Atomic_Species.tv delete [::$Definition_of_Atomic_Species.tv children ""]
+	::$Atoms_UnitVectors.tv delete [::$Atoms_UnitVectors.tv children ""]
+	cif2dat $path
+	set ::Atoms.Number 0
+	foreach asac ${::Atoms.SpeciesAndCoordinates} {
+	  set species [lindex $asac 0]
+	  set x [lindex $asac 1]
+	  set y [lindex $asac 2]
+	  set z [lindex $asac 3]
+	  set numEle [lindex [PAOVPS $species] 2]
+	  set halfNumEle [expr {$numEle*0.5}]
+	  lappend speciesList $species
+	  for {set i 0} {$i<$SCX} {incr i} {
+	    for {set j 0} {$j<$SCY} {incr j} {
+	      for {set k 0} {$k<$SCZ} {incr k} {
+		incr ::Atoms.Number
+		::$Atoms_SpeciesAndCoordinates.tv insert "" end -values [format "%4d %s %s %s %s %s %s" ${::Atoms.Number} $species [expr {($x+$i)/$SCX}] [expr {($y+$j)/$SCY}] [expr {($z+$k)/$SCZ}] $halfNumEle $halfNumEle]
+	      }
+	    }
+	  }
+	}
+	set speciesList [lsort -unique $speciesList]
+	set ::Species.Number [llength $speciesList]
+	foreach species $speciesList {
+	  ::$Definition_of_Atomic_Species.tv insert "" end -values "$species [lrange [PAOVPS $species] 0 1]"
+	}
+	::${Atoms_Number}.l2 configure -text ${::Atoms.Number}
+	::${Species_Number}.l2 configure -text ${::Species.Number}
+	set ::Atoms.SpeciesAndCoordinates.Unit FRAC
+	lset ::Atoms.UnitVectors 0 1 [expr {[lindex ${::Atoms.UnitVectors} 0 1]*$SCX}]
+	lset ::Atoms.UnitVectors 0 2 [expr {[lindex ${::Atoms.UnitVectors} 0 2]*$SCX}]
+	lset ::Atoms.UnitVectors 0 3 [expr {[lindex ${::Atoms.UnitVectors} 0 3]*$SCX}]
+	lset ::Atoms.UnitVectors 1 1 [expr {[lindex ${::Atoms.UnitVectors} 1 1]*$SCY}]
+	lset ::Atoms.UnitVectors 1 2 [expr {[lindex ${::Atoms.UnitVectors} 1 2]*$SCY}]
+	lset ::Atoms.UnitVectors 1 3 [expr {[lindex ${::Atoms.UnitVectors} 1 3]*$SCY}]
+	lset ::Atoms.UnitVectors 2 1 [expr {[lindex ${::Atoms.UnitVectors} 2 1]*$SCZ}]
+	lset ::Atoms.UnitVectors 2 2 [expr {[lindex ${::Atoms.UnitVectors} 2 2]*$SCZ}]
+	lset ::Atoms.UnitVectors 2 3 [expr {[lindex ${::Atoms.UnitVectors} 2 3]*$SCZ}]
+	foreach vector ${::Atoms.UnitVectors} {
+	  ::$Atoms_UnitVectors.tv insert "" end -values $vector
+	}
+	set ::rPath [file rootname $path]
+	set ::System.Name [file tail $::rPath]
+      }
+      pack .tInput.tSC.eX .tInput.tSC.eY .tInput.tSC.eZ .tInput.tSC.bSubmit -side left
+    }
+  }
+  button .tInput.fb.bCheck -text Check -command {
+  }
+  button .tInput.fb.bView -text View -command {
+    toplevel .tInput.tView
+    grab set .tInput.tView
+    set WH 500
+    set WHHalf [expr {$WH/2}]
+    set imageSize 100
+    canvas .tInput.tView.c -background black -width $WH -height $WH
+    checkbutton .tInput.tView.cbPerspective -text Perspective -variable ::perspective -offvalue no -onvalue yes
+    set ::perspective yes
+    .tInput.tView.cbPerspective select
+    set xmax 0.0
+    set xmin 0.0
+    if {[lindex ${::Atoms.UnitVectors} 0 1]>$xmax} {
+      set xmax [lindex ${::Atoms.UnitVectors} 0 1]
+    } elseif {[lindex ${::Atoms.UnitVectors} 0 1]<$xmin} {
+      set xmin [lindex ${::Atoms.UnitVectors} 0 1]
+    }
+    if {[lindex ${::Atoms.UnitVectors} 1 1]>$xmax} {
+      set xmax [lindex ${::Atoms.UnitVectors} 1 1]
+    } elseif {[lindex ${::Atoms.UnitVectors} 1 1]<$xmin} {
+      set xmin [lindex ${::Atoms.UnitVectors} 1 1]
+    }
+    if {[lindex ${::Atoms.UnitVectors} 2 1]>$xmax} {
+      set xmax [lindex ${::Atoms.UnitVectors} 2 1]
+    } elseif {[lindex ${::Atoms.UnitVectors} 2 1]<$xmin} {
+      set xmin [lindex ${::Atoms.UnitVectors} 2 1]
+    }
+    set ymax 0.0
+    set ymin 0.0
+    if {[lindex ${::Atoms.UnitVectors} 0 2]>$ymax} {
+      set ymax [lindex ${::Atoms.UnitVectors} 0 2]
+    } elseif {[lindex ${::Atoms.UnitVectors} 0 2]<$ymin} {
+      set ymin [lindex ${::Atoms.UnitVectors} 0 2]
+    }
+    if {[lindex ${::Atoms.UnitVectors} 1 2]>$ymax} {
+      set ymax [lindex ${::Atoms.UnitVectors} 1 2]
+    } elseif {[lindex ${::Atoms.UnitVectors} 1 2]<$ymin} {
+      set ymin [lindex ${::Atoms.UnitVectors} 1 2]
+    }
+    if {[lindex ${::Atoms.UnitVectors} 2 2]>$ymax} {
+      set ymax [lindex ${::Atoms.UnitVectors} 2 2]
+    } elseif {[lindex ${::Atoms.UnitVectors} 2 2]<$ymin} {
+      set ymin [lindex ${::Atoms.UnitVectors} 2 2]
+    }
+    set zmax 0.0
+    set zmin 0.0
+    if {[lindex ${::Atoms.UnitVectors} 0 3]>$zmax} {
+      set zmax [lindex ${::Atoms.UnitVectors} 0 3]
+    } elseif {[lindex ${::Atoms.UnitVectors} 0 3]<$zmin} {
+      set zmin [lindex ${::Atoms.UnitVectors} 0 3]
+    }
+    if {[lindex ${::Atoms.UnitVectors} 1 3]>$zmax} {
+      set zmax [lindex ${::Atoms.UnitVectors} 1 3]
+    } elseif {[lindex ${::Atoms.UnitVectors} 1 3]<$zmin} {
+      set zmin [lindex ${::Atoms.UnitVectors} 1 3]
+    }
+    if {[lindex ${::Atoms.UnitVectors} 2 3]>$zmax} {
+      set zmax [lindex ${::Atoms.UnitVectors} 2 3]
+    } elseif {[lindex ${::Atoms.UnitVectors} 2 3]<$zmin} {
+      set zmin [lindex ${::Atoms.UnitVectors} 2 3]
+    }
+    set viewLength [expr {max($xmax-$xmin, $ymax-$ymin)}]
+    set ::magnification 5
+    foreach item [::$Definition_of_Atomic_Species.tv children ""] {
+      set doas [::$Definition_of_Atomic_Species.tv set $item]
+      set element [lindex $doas 1]
+      scan [speciesColor $element] "#%02x%02x%02x" R G B
+      set scaledIS [expr {int($imageSize*[lindex [speciesRadius $element] 1]/3.0)}]
+      puts $scaledIS
+      image create photo $element -width $scaledIS -height $scaledIS
+      gradient $element raised 2 1 $R $G $B
+    }
+    set thetaY [expr {3.14159265358979*0.5}]
+    set thetaX 0.0
+    drawXyzv $viewLength $WH $WHHalf $imageSize $thetaY $thetaX
+    set dragFlag3 false
+    bind .tInput.tView.c <ButtonPress-3> {
+      set dragFlag3 true
+      set X0 %X
+      set Y0 %Y
+      %W configure -cursor exchange
+    }
+    bind .tInput.tView.c <Motion> {
+      if {$dragFlag3} {
+	%W delete all
+	drawXyzv $viewLength $WH $WHHalf $imageSize [expr {$thetaY+(%X-$X0)*0.015}] [expr {$thetaX+(%Y-$Y0)*0.015}]
+      }
+    }
+    bind .tInput.tView.c <ButtonRelease-3> {
+      set dragFlag3 false
+      set thetaY [expr {$thetaY+(%X-$X0)*0.015}]
+      set thetaX [expr {$thetaX+(%Y-$Y0)*0.015}]
+      %W configure -cursor left_ptr
+    }
+    bind .tInput.tView.c <Button-4> {
+      if {[info exists afterID]} {
+	after cancel $afterID
+      }
+      set viewLength [expr {max($viewLength-1, $::magnification)}]
+      %W configure -cursor sizing
+      set afterID [after 1 {
+	%W delete all
+	drawXyzv $viewLength $WH $WHHalf $imageSize $thetaY $thetaX
+	%W configure -cursor left_ptr
+      }]
+    }
+    bind .tInput.tView.c <Button-5> {
+      if {[info exists afterID]} {
+	after cancel $afterID
+      }
+      set viewLength [expr {$viewLength+1}]
+      %W configure -cursor sizing
+      set afterID [after 1 {
+	%W delete all
+	%W configure -cursor left_ptr
+	drawXyzv $viewLength $WH $WHHalf $imageSize $thetaY $thetaX
+      }]
+    }
+    pack .tInput.tView.c
+    pack .tInput.tView.cbPerspective
+    button .tInput.tView.bClose -text Close -command {
+      destroy .tInput.tView
+    }
+    pack .tInput.tView.bClose
+  }
+  button .tInput.fb.bClose -text Close -command {
+    destroy .tInput
+  }
+  pack .tInput.nb -fill both -expand true
+  pack .tInput.fb.bCreate .tInput.fb.bImport .tInput.fb.bCheck .tInput.fb.bView .tInput.fb.bClose -side left
+  pack .tInput.fb
+  set elements {
+    {System.CurrentDir directory ./}
+    {System.Name string default}
+    {DATA.PATH directory ../DFT_DATA13}
+    {level.of.stdout integer 1 1 3 *}
+    {level.of.fileout integer 1 0 2 *}
+    {Species.Number label}
+    {Definition.of.Atomic.Species species}
+    {Atoms.Number label}
+    {Atoms.SpeciesAndCoordinates.Unit option Ang AU FRAC}
+    {Atoms.SpeciesAndCoordinates atom}
+    {Atoms.UnitVectors.Unit option Ang AU}
+    {Atoms.UnitVectors vector}
+    {scf.XcType option LDA LSDA-CA LSDA-PW GGA-PBE EXX-TEST}
+    {scf.SpinPolarization option OFF ON NC}
+    {scf.partialCoreCrrection option ON OFF}
+    {scf.Hubbard.U option OFF ON}
+    {scf.Hubbard.Occupation option FULL DUAL ONSITE}
+    {Hubbard.U.values orbital}
+    {scf.Constraint.NC.Spin option OFF ON}
+    {scf.Constraint.NC.Spin.v float 0.0}
+    {scf.ElectronicTemperature float 300}
+    {scf.energycutoff float 150}
+    {scf.Ngrid integer3 0 0 0}
+    {scf.maxIter integer 40 1 * *}
+    {scf.EigenvalueSolver option Recursion Cluster Band NEGF DC GDC Cluster-DIIS Krylov Cluster2 EC}
+    {scf.Kgrid integer3 4 4 4}
+    {scf.ProExpn.VNA option ON OFF}
+    {scf.Mixing.Type option Simple GR-Pulay RMM-DIIS Kerker RMM-DIISK RMM-DIISH RMM-ADIIS}
+    {scf.Init.Mixing.Weight float 0.3}
+    {scf.Min.Mixing.Weight float 0.001}
+    {scf.Max.Mixing.Weight float 0.4}
+    {scf.Kerker.factor float -1.0}
+    {scf.Mixing.History integer 30 1 * *}
+    {scf.Mixing.StartPulay integer 6 1 * *}
+    {scf.Mixing.EveryPulay integer 1 1 * *}
+    {scf.criterion float 1.0e-6}
+    {scf.Electric.Field float3 0.0 0.0 0.0}
+    {scf.system.charge float 0.0}
+    {scf.SpinOrbit.Coupling option OFF ON}
+    {MD.Type option NOMD NVE NVT_VS Opt EF BFGS RF DIIS Constraint_DIIS NVT_NH Opt_LBFGS}
+    {MD.maxIter integer 1 1 * *}
+    {MD.Opt.criterion float 1.0e-4}
+    {ESM.switch option OFF ON1 ON2 ON3 ON4}
+    {ESM.buffer.range float 10.0}
+    {ESM.wall.switch option OFF ON}
+    {ESM.potential.diff float 0.0}
+    {ESM.wall.position float 10.0}
+    {ESM.wall.height float 100.0}
+    {orderN.HoppingRanges float 6.0}
+    {orderN.KrylovH.order integer 400 1 * *}
+    {orderN.Exact.Inverse.S option ON OFF}
+    {orderN.KrylovS.order integer 1600 1 * *}
+    {orderN.Recalc.Buffer option ON OFF}
+    {orderN.Expand.Core option ON OFF}
+  }
+  set ::keywords ""
+  foreach element $elements {
+    set keyword [lindex $element 0]
+    lappend ::keywords $keyword
+    set kw [regsub -all {\.} $keyword _]
+    set page [getpage $keyword]
+    set type [lindex $element 1]
+    set p .tInput.nb.f$page
+    if {[lsearch [.tInput.nb tabs] $p] == -1} {
+      frame $p
+      .tInput.nb add $p -text $page
+    }
+    if {![winfo exists $p.pa]} {
+      panedwindow $p.pa
+      pack $p.pa
+    }
+    set nsubpage [llength [$p.pa panes]]
+    if {$nsubpage > 0} {
+      set subpage [expr $nsubpage - 1]
+      set sp $p.pa.f$subpage
+      set nframe [llength [winfo children $sp]]
+    }
+    if {$nsubpage == 0 || $nframe == 15} {
+      set subpage $nsubpage
+      set sp $p.pa.f$subpage
+      frame $sp
+      $p.pa add $sp
+    }
+    set spf $sp.f$kw
+    set ::$kw $spf
+    frame $spf
+    pack $spf
+    label $spf.l -text $keyword
+    set sideop left
+    if {[string equal -nocase $type atom]} {
+      set sideop top
+    }
+    if {[string equal -nocase $type species]} {
+      set sideop top
+    }
+    if {[string equal -nocase $type vector]} {
+      set sideop top
+    }
+    pack $spf.l -side $sideop
+    if {[string equal -nocase $type directory]} {
+      set ::$keyword [lindex $element 2]
+      lappend pathlist ::$keyword
+      button $spf.b -text Select -command "eval set ::$keyword \[getpath $\{::$keyword\}\]"
+      entry $spf.e -textvariable ::$keyword
+      pack $spf.e $spf.b -side left
+    }
+    if {[string equal -nocase $type float]} {
+      set ::$keyword [lindex $element 2]
+      entry $spf.e -textvariable ::$keyword
+      pack $spf.e -side right
+    }
+    if {[string equal -nocase $type option]} {
+      set ::$keyword [lindex $element 2]
+      set option [lrange $element 2 end]
+      eval tk_optionMenu $spf.om ::$keyword $option
+      if {[string equal -nocase ::$keyword scf.Hubbard.Occupation] && [info exists scf.Hubbard.U] && [string equal -nocase ${scf.Hubbard.U} OFF]} {
+	$spf.om configure -state disabled
+      }
+      pack $spf.om -side right
+    }
+    if {[string equal -nocase $type species]} {
+      frame $spf.f
+      label $spf.f.ls -text Species
+      entry $spf.f.es -width 3
+      label $spf.f.lp -text PAO
+      entry $spf.f.ep
+      button $spf.f.bp -text Select
+      label $spf.f.lv -text VPS
+      entry $spf.f.ev -width 10
+      button $spf.f.bv -text Select
+      ttk::treeview $spf.tv -columns {species PAO VPS} -show headings
+      $spf.tv heading species -text Species
+      $spf.tv heading PAO -text PAO
+      $spf.tv heading VPS -text VPS
+      #scrollbar .tInput.y -command {.sf yview}
+      pack $spf.f $spf.tv
+      pack $spf.f.ls $spf.f.es $spf.f.lp $spf.f.ep $spf.f.bp $spf.f.lv $spf.f.ev $spf.f.bv -side left
+    }
+    if {[string equal -nocase $type string]} {
+      set ::$keyword [lindex $element 2]
+      entry $spf.e -textvariable ::$keyword
+      pack $spf.e -side right
+    }
+    if {[string equal -nocase $type integer]} {
+      pack $spf.l -side left
+      set ::$keyword [lindex $element 2]
+      if {[lindex $element 3] ne "*"} {
+	set min [lindex $element 3]
+      } else {
+	set min -2147483647
+      }
+      if {[lindex $element 4] ne "*"} {
+	set max [lindex $element 4]
+      } else {
+	set max 2147483647
+      }
+      if {[lindex $element 5] ne "*"} {
+	set increment [lindex $element 4]
+      } else {
+	set increment 1
+      }
+      spinbox $spf.sb -from $min -to $max -increment $increment -textvariable ::$keyword
+      pack $spf.sb -side right
+    }
+    if {[string equal -nocase $type label]} {
+      label $spf.l2
+      pack $spf.l2 -side right
+    }
+    if {[string equal -nocase $type atom]} {
+      frame $spf.f
+      label $spf.f.ls -text Species
+      entry $spf.f.es -width 3
+      label $spf.f.lp -text PAO
+      entry $spf.f.ep
+      button $spf.f.bp -text Select
+      label $spf.f.lv -text VPS
+      entry $spf.f.ev -width 10
+      button $spf.f.bv -text Select
+      ttk::treeview $spf.tv -columns {number species x y z up down} -show headings
+      $spf.tv heading number -text #
+      $spf.tv heading species -text Species
+      $spf.tv heading x -text x
+      $spf.tv heading y -text y
+      $spf.tv heading z -text z
+      $spf.tv heading up -text Up
+      $spf.tv heading down -text Down
+      #scrollbar .tInput.y -command {.sf yview}
+      pack $spf.f $spf.tv
+      pack $spf.f.ls $spf.f.es $spf.f.lp $spf.f.ep $spf.f.bp $spf.f.lv $spf.f.ev $spf.f.bv -side left
+    }
+    if {[string equal -nocase $type vector]} {
+      frame $spf.f
+      #label $spf.f.ls -text Species
+      #entry $spf.f.es -width 3
+      #label $spf.f.lp -text PAO
+      #entry $spf.f.ep
+      #button $spf.f.bp -text Select
+      #label $spf.f.lv -text VPS
+      #entry $spf.f.ev -width 10
+      #button $spf.f.bv -text Select
+      ttk::treeview $spf.tv -columns {vector x y z} -show headings
+      $spf.tv heading vector -text vector
+      $spf.tv heading x -text x
+      $spf.tv heading y -text y
+      $spf.tv heading z -text z
+      #scrollbar .tInput.y -command {.sf yview}
+      pack $spf.f $spf.tv
+      #pack $spf.f.ls $spf.f.es $spf.f.lp $spf.f.ep $spf.f.bp $spf.f.lv $spf.f.ev $spf.f.bv -side left
+    }
+    if {[string equal -nocase $type float3]} {
+      set ::${keyword}(1) [lindex $element 2]
+      set ::${keyword}(2) [lindex $element 3]
+      set ::${keyword}(3) [lindex $element 4]
+      entry $spf.e1 -textvariable ::${keyword}(1)
+      entry $spf.e2 -textvariable ::${keyword}(2)
+      entry $spf.e3 -textvariable ::${keyword}(3)
+      pack $spf.e1 $spf.e2 $spf.e3 -side right
+    }
+    if {[string equal -nocase $type integer3]} {
+      set ::${keyword}(1) [lindex $element 2]
+      set ::${keyword}(2) [lindex $element 3]
+      set ::${keyword}(3) [lindex $element 4]
+      entry $spf.e1 -textvariable ::${keyword}(1)
+      entry $spf.e2 -textvariable ::${keyword}(2)
+      entry $spf.e3 -textvariable ::${keyword}(3)
+      pack $spf.e1 $spf.e2 $spf.e3 -side right
+    }
+  }
+  set pbval 0
+  set numPages [llength [.tInput.nb tabs]]
+  foreach page [.tInput.nb tabs] {
+    .tInput.nb select $p
+    incr pbval
+  }
+  .tInput.nb select 0
+  source $::rootPath/.omxtoolinput
+  set ::swLDA yes
+  bind .tInput <Motion> {
+    if {${scf.XcType} eq "LDA" && !$::swLDA} {
+      pack forget $::scf_SpinPolarization.om
+      destroy $::scf_SpinPolarization.om
+      set ${scf.SpinPolarization} OFF
+      tk_optionMenu $::scf_SpinPolarization.om ${scf.SpinPolarization} OFF
+      pack $::scf_SpinPolarization.om -side right
+      set ::swLDA yes
+    } elseif {$::swLDA} {
+      pack forget $::scf_SpinPolarization.om
+      destroy $::scf_SpinPolarization.om
+      tk_optionMenu $::scf_SpinPolarization.om ${scf.SpinPolarization} OFF ON NC
+      pack $::scf_SpinPolarization.om -side right
+      set ::swLDA no
+    }
+  }
+}
+# "STC" means "Send Tcl Command".
+proc STC {args} {
+  global spawn_id
+  set option ""
+  set human_mode_tcl off
+  if {$human_mode_tcl} {
+    set send_human {.1 .3 1 .05 2} ;# refer to EXPECT's help
+    set option -h
+  }
+  set command [lindex $args 0]
+  if {[llength $args]>1} {
+    set spawnID [lindex $args 1]
+  } else {
+    set spawnID $spawn_id
+  }
+  set depth 0
+  set cmds [split $command \n]
+  foreach cmd $cmds {
+    set cmd [string trim $cmd]
+    if {[string length $cmd] > 0} {
+      if {$depth > 0} {
+	eval exp_send -i $spawnID $option {$cmd\n}
+      } else {
+	expect {
+	  -i $spawnID
+	  -ex "%" {eval exp_send -i $spawnID $option {$cmd\n}}
+	}
+      }
+      set depth [expr $depth + [regexp -all \{ $cmd] - [regexp -all \} $cmd]]
+    }
+  }
+}
+proc sendcmd {args} {
+  global argv0 interact_flag human_mode spawn_id
+  set cmd [lindex $args 0]
+  if {[llength $args]>1} {
+    set spawnID [lindex $args 1]
+  } else {
+    set spawnID $spawn_id
+  }
+  if {$interact_flag} {
+    set human_mode off ;# on/off
+  }
+  set option ""
+  if {$human_mode} {
+    set send_human {.1 .3 1 .05 2} ;# refer to EXPECT's help
+    set option -h
+  }
+  eval exp_send -i $spawnID $option {\ $cmd\n}
+}
+proc getPrompt {spawnID} {
+  set prompt "\n"
+  while {[string is control $prompt]} {
+    while {[string is space $prompt]} {
+      puts " "
+      expect -i $spawnID " " {set prompt $expect_out(buffer)}
+    }
+    set preprompt ""
+    while {$prompt ne $preprompt} {
+      set preprompt $prompt
+      sleep 0.05
+      sendcmd "" $spawnID
+      expect -i $spawnID "\n" {set prompt $expect_out(buffer)}
+    }
+    set prompt [string trim $prompt]
+  }
+  return $prompt
+}
+proc ssh {argc argv args} {
+  global env spawn_id user_spawn_id screen_spawn_id
+
+  set timeout 5;# the time limit (if timeout = -1, then there is no time limit.)
+
+  set interact_flag true
+  set sftp_flag false
+  if {[llength $args]>0} {
+    set sshMode [lindex $args 0]
+    switch $sshMode {
+      "spawn" {
+	set interact_flag false
+      }
+      "sftp" {
+	global sftp
+	set sftp_flag true
+      }
+      "bastion" {
+	set spawnID $screen_spawn_id
+      }
+      default {
+	set spawnID $sshMode
+	set interact_flag false
+	set timeout 60
+      }
+    }
+  } else {
+    set sshMode "screen"
+    set spawnID $screen_spawn_id
+    exp_send -i $screen_spawn_id "c"
+  }
+
+  set id [lindex $argv 0]
+  set pass [lindex $argv 1]
+  set host [lindex $argv 2]
+  if {[lindex $argv 3]==""} {
+    set use_key no
+  } else {
+    set use_key yes
+  }
+  if {$use_key} {
+    global pri_key
+    set pri_key [tildeSlash2Home [lindex $argv 3]]
+  }
+  set option ""
+  set x_mode [lindex $argv 4] ;# on/off
+  if {$x_mode && !$sftp_flag} {
+    lappend option -Y2C
+  }
+  if {[lindex $argv 5]==""} {
+    set use_command no
+  } else {
+    set use_command yes
+  }
+  if {$sftp_flag} {
+    set prompt "sftp> "
+  }
+
+  if {[info exists pri_key]} {
+    global phrase
+    set phrase "Enter passphrase for key "
+    if {$sftp_flag} {
+      lappend option "-oIdentityFile=$pri_key"
+    } else {
+      lappend option "-i $pri_key"
+    }
+  } else {
+    set phrase "password: "
+  }
+  if {$sftp_flag} {
+    sendcmd [join "sftp $option $id@$host"] $screen_spawn_id
+  } else {
+    if {$sshMode eq "spawn"} {
+      eval [join "spawn ssh $option $id@$host"]
+      set spawnID $spawn_id
+    } else {
+      sendcmd [join "ssh $option $id@$host"] $spawnID
+    }
+  }
+
+  expect_after -i $spawnID timeout {exp_send -i $screen_spawn_id ""; return 2}
+  expect {
+    -i $spawnID
+    "(yes/no)? " {exp_send -i $spawnID "yes\n"; exp_continue}
+    "$phrase" {exp_send -i $spawnID "$pass\n"; exp_continue}
+    "sftp> " {sendcmd "lcd '$env(PWD)'" $spawnID}
+    "Last login: " {}
+    -re "Permission denied|ssh: Could not resolve hostname.*not known" {return 1}
+    "ssh_exchange_identification: Connection closed by remote host" {return 1}
+  }
+  if {$sshMode eq "bastion" && false} {
+    expect {
+      -i $spawnID
+      "(yes/no)? " {exp_send -i $spawnID "yes\n"; exp_continue}
+      "$phrase" {exp_send -i $spawnID "$pass\n"; exp_continue}
+      "sftp> " {sendcmd "lcd '$env(PWD)'" $spawnID}
+      "Last login: " {puts aaa}
+      -re "Permission denied|ssh: Could not resolve hostname.*not known" {return 1}
+      "ssh_exchange_identification: Connection closed by remote host" {return 1}
+    }
+  }
+  if {$use_command && !$sftp_flag} {
+    if {$interact_flag} {
+      set prompt [getPrompt $screen_spawn_id]
+    } else {
+      set prompt [getPrompt $spawnID]
+    }
+    foreach command [split [lindex $argv 5] ";"] {
+      if {$interact_flag} {
+	expect -i $screen_spawn_id -ex $prompt {sendcmd "$command" $screen_spawn_id}
+      } else {
+	expect -i $spawnID -ex $prompt {sendcmd "$command" $spawnID}
+      }
+    }
+  } elseif {!$interact_flag} {
+    set prompt [getPrompt $spawnID]
+  }
+
+  if {$interact_flag} {
+    interact -i $screen_spawn_id timeout -1 {}
+    return 0
+  } else {
+    return "0 $prompt"
+  }
+}
+proc scp {copy_mode src dst argv args} {
+  global env spawn_id user_spawn_id
+
+  set timeout -1 ;#
+
+  if {[llength $args]>0} {
+    set sshMode [lindex $args 0]
+    set spawnID $sshMode
+  } else {
+    set sshMode "spawn"
+  }
+
+  # SSH parameter
+  set id [lindex $argv 0] ;#
+  set pass [lindex $argv 1] ;#
+  set host [lindex $argv 2] ;#
+  if {[lindex $argv 3]==""} {
+    set use_key no
+  } else {
+    set use_key yes
+  }
+  if {$use_key} {
+    global pri_key
+    set pri_key [tildeSlash2Home [lindex $argv 3]]
+  }
+  set copy_directory yes ;# yes/no
+  if {$copy_directory} {
+    global option
+    set option -vrpC
+  } else {
+    set option -vpC
+  }
+  if {[info exists pri_key]} {
+    global phrase
+    set phrase "Enter passphrase for key "
+    lappend option "-i $pri_key"
+  } else {
+    set phrase "password: "
+  }
+  switch $copy_mode {
+    "u" {
+      set i 0
+      foreach file $src {
+	lset src $i \"$file\"
+	incr i
+      }
+      set i 0
+      foreach file $dst {
+	lset dst $i \"$id@$host:$file\"
+	incr i
+      }
+    }
+    "d" {
+      set i 0
+      foreach file $src {
+	lset src $i \"$id@$host:$file\"
+	incr i
+      }
+      set i 0
+      foreach file $dst {
+	lset dst $i \"$file\"
+	incr i
+      }
+    }
+    default {puts Error: copy_mode; return 1}
+  }
+  if {$sshMode eq "spawn"} {
+    eval [join "spawn scp $option $src $dst"]
+    set cnt [llength $src]
+    while {1} {
+      incr cnt -1
+      expect {
+	"(yes/no)? " {exp_send "yes\n"; exp_continue}
+	"$phrase" {exp_send "$pass\n"; exp_continue}
+	"sftp> " {sendcmd "lcd '$env(PWD)'"}
+	"debug1: compress incoming: raw data" {
+	  if {!$cnt} {
+	    break
+	  }
+	}
+	-re "Permission denied|ssh: Could not resolve hostname*Name or service not known" {return 1}
+      }
+    }
+  } else {
+    sendcmd [join "scp $option $src $dst"] $spawnID
+    expect {
+      -i $spawnID
+      "(yes/no)? " {exp_send -i $spawnID "yes\n"; exp_continue}
+      "$phrase" {exp_send -i $spawnID "$pass\n"; exp_continue}
+      "sftp> " {sendcmd "lcd '$env(PWD)'" $spawnID}
+      "debug1: compress incoming: raw data" {}
+      -re "Permission denied|ssh: Could not resolve hostname*Name or service not known" {return 1}
+    }
+  }
+}
+proc uploadDir {argc argv} {
+  global interact_flag human_mode timeout spawn_id screen_spawn_id
+  set src [tk_chooseDirectory]
+  puts $src
+  set dst ""
+  if {$src ne ""} {
+    set interact_flag false
+    set human_mode off
+    set sshReturn [ssh $argc $argv "spawn"]
+    if {[lindex $sshReturn 0]==1} {
+      return 1
+    }
+    set prompt [lindex $sshReturn 1]
+    set timeout -1
+    expect {
+      -ex $prompt {sendcmd "wish"}
+    }
+    expect wish
+    STC "tk_chooseDirectory"
+    expect -ex "tk_chooseDirectory" {expect % {set dst [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+    close
+    if {$dst ne ""} {
+      scp u $src $dst $argv
+    } else {
+      clear
+      sendcmd "" $screen_spawn_id
+      return $dst
+    }
+    set interact_flag true
+  } else {
+    clear
+    sendcmd "" $screen_spawn_id
+    return $dst
+  }
+}
+proc downloadDir {argc argv} {
+  global interact_flag human_mode timeout spawn_id screen_spawn_id debugMode
+  log_user $debugMode
+  set interact_flag false
+  set human_mode off
+  set sshReturn [ssh $argc $argv "spawn"]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set timeout -1
+  expect {
+    -ex $prompt {sendcmd "wish"}
+  }
+  expect wish
+  STC "tk_chooseDirectory"
+  expect -ex "Directory" {expect % {set src [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+  close
+  set dst ""
+  if {$src ne ""} {
+    set dst [tk_chooseDirectory]
+    if {$dst ne ""} {
+      scp d $src $dst $argv
+    } else {
+      clear
+      sendcmd "" $screen_spawn_id
+      log_user on
+      return $dst
+    }
+  } else {
+    clear
+    sendcmd "" $screen_spawn_id
+    log_user on
+    return $dst
+  }
+  set interact_flag true
+  log_user on
+}
+proc transportDir {argc_src argv_src argc_dst argv_dst} {
+  global timeout spawn_id screen_spawn_id rootPath debugMode
+  log_user $debugMode
+  set argv_src_org $argv_src
+  lset argv_src 5 "[lindex $argv_src 5]\;trap 'rm -f \$filename' 0 1 2 3 6 15\;begin1=EXP\;begin2=ECT_\;end1=_EXP\;end2=ECT\;filename=`mktemp || mktemp -t tmp`\;echo \$begin1\$begin2\$filename\$end1\$end2\;wish"
+  set sshReturn [ssh $argc_src $argv_src "spawn"]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set timeout -1
+  expect {
+    EXPECT_ {
+      expect _EXPECT {set filename [string trimright $expect_out(buffer) _EXPECT]}
+    }
+  }
+  set ssh_src_spawn_id $spawn_id
+  if {[lindex $argv_dst 3] ne ""} {
+    scp u \"[tildeSlash2Home [lindex $argv_dst 3]]\" $filename $argv_src
+  }
+  STC "wm withdraw ." $ssh_src_spawn_id
+  STC "tk_chooseDirectory" $ssh_src_spawn_id
+  expect -i $ssh_src_spawn_id -ex "Directory" {expect -i $ssh_src_spawn_id -ex "%" {set src [split [trimControl [string trim [string trim $expect_out(buffer)] %]] ,]; sendcmd "" $ssh_src_spawn_id}}
+  STC "exit" $ssh_src_spawn_id
+  set dst ""
+  if {$src ne ""} {
+    set sshReturn [ssh $argc_src $argv_src_org "spawn"]
+    if {[lindex $sshReturn 0]==1} {
+      return 1
+    }
+    set prompt [lindex $sshReturn 1]
+    set ssh_src_spawn_id2 $spawn_id
+    set timeout -1
+    if {[lindex $argv_dst 3] ne ""} {
+      lset argv_dst 3 $filename
+    }
+    lset argv_dst 5 "[lindex $argv_dst 5]\;wish"
+    set sshReturn [ssh $argc_dst $argv_dst $ssh_src_spawn_id2]
+    if {[lindex $sshReturn 0]==1} {
+      return 1
+    }
+    STC "wm withdraw ."
+    STC "tk_chooseDirectory"
+    expect "Directory" {expect % {set dst [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+    close -i $ssh_src_spawn_id2
+    if {$dst ne ""} {
+      scp u $src $dst $argv_dst $ssh_src_spawn_id
+      close -i $ssh_src_spawn_id
+    } else {
+      clear
+      sendcmd "" $screen_spawn_id
+      log_user on
+      return $dst
+    }
+  } else {
+    clear
+    sendcmd "" $screen_spawn_id
+    log_user on
+    return $dst
+  }
+  log_user on
+  return $dst
+}
+proc upload {argc argv} {
+  global interact_flag human_mode timeout spawn_id screen_spawn_id debugMode
+  log_user $debugMode
+  toplevel .tProgress
+  wm title .tProgress "Upload"
+  grab set .tProgress
+  label .tProgress.l -text "Connecting..."
+  pack .tProgress.l
+  .tProgress.l configure -text "Select source files."
+  set src [tk_getOpenFile -multiple on]
+  set dst ""
+  if {$src ne ""} {
+    set interact_flag false
+    set human_mode off
+    set sshReturn [ssh $argc $argv "spawn"]
+    if {[lindex $sshReturn 0]==1} {
+      return 1
+    }
+    set prompt [lindex $sshReturn 1]
+    set timeout -1
+    expect {
+      -ex $prompt {sendcmd "wish"}
+    }
+    .tProgress.l configure -text "Select destination files."
+    if {[llength $src]>1} {
+      STC "wm withdraw ."
+      STC "tk_chooseDirectory"
+      expect "Directory" {expect % {set dst [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+    } else {
+      STC "tk_getSaveFile -initialfile [file tail $src] -title \"Save As\""
+      expect "\"Save As\"" {expect % {set dst [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+    }
+    close
+    if {$dst ne ""} {
+      .tProgress.l configure -text "Uploading..."
+      scp u $src $dst $argv
+    } else {
+      clear
+      sendcmd "" $screen_spawn_id
+      destroy .tProgress
+      log_user on
+      return $dst
+    }
+    set interact_flag true
+  } else {
+    clear
+    sendcmd "" $screen_spawn_id
+    destroy .tProgress
+    log_user on
+    return $dst
+  }
+  destroy .tProgress
+  log_user on
+}
+proc download {argc argv args} {
+  global interact_flag human_mode timeout spawn_id screen_spawn_id debugMode
+  log_user $debugMode
+  toplevel .tProgress
+  wm title .tProgress "Download"
+  grab set .tProgress
+  label .tProgress.l -text "Connecting..."
+  pack .tProgress.l
+  set interact_flag false
+  set human_mode off
+  lset argv 5 "[lindex $argv 5]\;wish"
+  set sshReturn [ssh $argc $argv "spawn"]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set interact_flag true
+  set timeout -1
+  .tProgress.l configure -text "Select source files."
+  STC "wm withdraw ."
+  if {[llength $args]==0} {
+    STC "join \[tk_getOpenFile -multiple on\] ,"
+    expect -ex "-multiple on] ," {expect % {set src [split [trimControl [string trim [string trim $expect_out(buffer)] %]] ,]}}
+  } else {
+    STC "join \[tk_getOpenFile -filetypes [lindex $args 0]\] ,"
+    expect -ex "[lindex $args 0]\] ," {expect % {set src [split [trimControl [string trim [string trim $expect_out(buffer)] %]] ,]}}
+  }
+  close
+  set dst ""
+  .tProgress.l configure -text "Select destination files."
+  if {$src ne ""} {
+    if {[llength $src]>1} {
+      set dst [tk_chooseDirectory]
+    } else {
+      set dst [tk_getSaveFile -initialfile [file tail $src] -title "Save As"]
+    }
+    if {$dst ne ""} {
+      .tProgress.l configure -text "Downloading..."
+      scp d $src \"$dst\" $argv
+    } else {
+      clear
+      sendcmd "" $screen_spawn_id
+      destroy .tProgress
+      log_user on
+      return $dst
+    }
+  } else {
+    clear
+    sendcmd "" $screen_spawn_id
+    destroy .tProgress
+    log_user on
+    return $dst
+  }
+  destroy .tProgress
+  log_user on
+  return $dst
+}
+proc transport {argc_src argv_src argc_dst argv_dst} {
+  global timeout spawn_id screen_spawn_id rootPath debugMode
+  log_user $debugMode
+  toplevel .tProgress
+  wm title .tProgress "Transport"
+  grab set .tProgress
+  label .tProgress.l -text "Connecting..."
+  pack .tProgress.l
+  set argv_src_org $argv_src
+  lset argv_src 5 "[lindex $argv_src 5]\;trap 'rm -f \$filename' 0 1 2 3 6 15\;begin1=EXP\;begin2=ECT_\;end1=_EXP\;end2=ECT\;filename=`mktemp || mktemp -t tmp`\;echo \$begin1\$begin2\$filename\$end1\$end2\;wish"
+  set sshReturn [ssh $argc_src $argv_src "spawn"]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set timeout -1
+  expect {
+    EXPECT_ {
+      expect _EXPECT {set filename [string trimright $expect_out(buffer) _EXPECT]}
+    }
+  }
+  set ssh_src_spawn_id $spawn_id
+  if {[lindex $argv_dst 3] ne ""} {
+    scp u \"[tildeSlash2Home [lindex $argv_dst 3]]\" $filename $argv_src
+  }
+  .tProgress.l configure -text "Select source files."
+  STC "wm withdraw ." $ssh_src_spawn_id
+  STC "join \[tk_getOpenFile -multiple on\] ," $ssh_src_spawn_id
+  expect -i $ssh_src_spawn_id -ex "-multiple on] ," {expect -i $ssh_src_spawn_id -ex "%" {set src [split [trimControl [string trim [string trim $expect_out(buffer)] %]] ,]; sendcmd "" $ssh_src_spawn_id}}
+  STC "exit" $ssh_src_spawn_id
+  .tProgress.l configure -text "Connecting..."
+  set dst ""
+  if {$src ne ""} {
+    set sshReturn [ssh $argc_src $argv_src_org "spawn"]
+    if {[lindex $sshReturn 0]==1} {
+      return 1
+    }
+    set prompt [lindex $sshReturn 1]
+    set ssh_src_spawn_id2 $spawn_id
+    set timeout -1
+    if {[lindex $argv_dst 3] ne ""} {
+      lset argv_dst 3 $filename
+    }
+    lset argv_dst 5 "[lindex $argv_dst 5]\;wish"
+    set sshReturn [ssh $argc_dst $argv_dst $ssh_src_spawn_id2]
+    if {[lindex $sshReturn 0]==1} {
+      return 1
+    }
+    .tProgress.l configure -text "Select destination files."
+    STC "wm withdraw ."
+    if {[llength $src]>1} {
+      STC "tk_chooseDirectory"
+      expect "Directory" {expect % {set dst [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+    } else {
+      STC "tk_getSaveFile -initialfile [file tail $src] -title \"Save As\""
+      expect "\"Save As\"" {expect % {set dst [trimControl [string trim [string trim $expect_out(buffer)] %]]}}
+    }
+    close -i $ssh_src_spawn_id2
+    if {$dst ne ""} {
+      .tProgress.l configure -text "Transporting..."
+      scp u $src $dst $argv_dst $ssh_src_spawn_id
+      close -i $ssh_src_spawn_id
+      destroy .tProgress
+      log_user on
+      return $dst
+    } else {
+      clear
+      sendcmd "" $screen_spawn_id
+      destroy .tProgress
+      log_user on
+      return $dst
+    }
+  } else {
+    clear
+    sendcmd "" $screen_spawn_id
+    destroy .tProgress
+    log_user on
+    return $dst
+  }
+  destroy .tProgress
+  log_user on
+  return $dst
+}
+proc sshBastion {argc_src argv_src argc_dst argv_dst} {
+  global timeout spawn_id screen_spawn_id rootPath debugMode
+  set argv_src_org $argv_src
+  lset argv_src 5 "[lindex $argv_src 5]\;trap 'rm -f \$filename' 0 1 2 3 6 15\;begin1=EXP\;begin2=ECT_\;end1=_EXP\;end2=ECT\;filename=`mktemp || mktemp -t tmp`\;echo \$begin1\$begin2\$filename\$end1\$end2"
+  set sshReturn [ssh $argc_src $argv_src $screen_spawn_id]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set timeout -1
+  expect {
+    -i $screen_spawn_id
+    EXPECT_ {
+      expect -i $screen_spawn_id _EXPECT {set filename [string trimright $expect_out(buffer) _EXPECT]}
+    }
+  }
+  if {[lindex $argv_dst 3] ne ""} {
+    scp u \"[tildeSlash2Home [lindex $argv_dst 3]]\" $filename $argv_src
+  }
+  if {[lindex $argv_dst 3] ne ""} {
+    lset argv_dst 3 $filename
+  }
+  set sshReturn [ssh $argc_dst $argv_dst "bastion"]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set timeout -1
+  interact -i $screen_spawn_id timeout -1 {
+    {exit}
+  }
+}
+proc sshBastion2 {argc_src argv_src argc_dst argv_dst} {
+  global interact_flag human_mode timeout spawn_id screen_spawn_id rootPath
+  set interact_flag false
+  set human_mode off
+  set argv_src_org $argv_src
+  lset argv_src 5 "[lindex $argv_src 5]\;trap 'rm -f \$filename' 0 1 2 3 6 15\;begin1=EXP\;begin2=ECT_\;end1=_EXP\;end2=ECT\;filename=`mktemp || mktemp -t tmp`\;echo \$begin1\$begin2\$filename\$end1\$end2"
+  set sshReturn [ssh $argc_src $argv_src]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set interact_flag true
+  set timeout -1
+  expect {
+    EXPECT_ {
+      expect _EXPECT {set filename [string trimright $expect_out(buffer) _EXPECT]}
+    }
+  }
+  set ssh_src_spawn_id $spawn_id
+  scp u \"[tildeSlash2Home [lindex $argv_dst 3]]\" $filename $argv_src
+  set interact_flag false
+  set human_mode off
+  set sshReturn [ssh $argc_src $argv_src_org]
+  if {[lindex $sshReturn 0]==1} {
+    return 1
+  }
+  set prompt [lindex $sshReturn 1]
+  set interact_flag true
+  set ssh_src_spawn_id2 $spawn_id
+  set timeout -1
+  sendcmd "ssh -i $filename -Y2C [lindex $argv_dst 0]@[lindex $argv_dst 2]"
+  expect {
+    -ex "(yes/no)? " {exp_send "yes\n"; exp_continue}
+    -ex "Enter passphrase for key '$filename': " {
+      exp_send "[lindex $argv_dst 1]\n"
+      expect -ex "Last login: " {
+	close -i $ssh_src_spawn_id
+      }
+    }
+  }
+  interact -i $ssh_src_spawn_id2 timeout -1 {
+    {exit}
+  }
+}
+proc view {argc argv} {
+  global gnuplotInfo xcrysdenInfo
+  if {$xcrysdenInfo ne ""} {
+    if {$gnuplotInfo ne ""} {
+      set filename [download $argc $argv {{{{XYZ Files} {.xyz}} {{MD Files} {.md}} {{Gaussian Cube Files} {.cube}} {{XCrySDen Structure Files} {.xsf}} {{Band-XSF Files} {.bxsf}} {{Band Data} {.Band}}}}]
+    } else {
+      set filename [download $argc $argv {{{{XYZ Files} {.xyz}} {{MD Files} {.md}} {{Gaussian Cube Files} {.cube}} {{XCrySDen Structure Files} {.xsf}} {{Band-XSF Files} {.bxsf}}}}]
+    }
+  } elseif {$gnuplotInfo ne ""} {
+    set filename [download $argc $argv {{{{Band Data} {.Band}}}}]
+  }
+  switch [file extension $filename] {
+    ".md" -
+    ".xyz" {
+      catch {exec xcrysden --xyz $filename &}
+    }
+    ".xsf" {
+      catch {exec xcrysden --xsf $filename &}
+    }
+    ".bxsf" {
+      catch {exec xcrysden --bxsf $filename &}
+    }
+    ".cube" {
+      catch {exec xcrysden --cube $filename &}
+    }
+    ".Band" {
+      band $filename
+    }
+  }
+}
+proc openSSH {} {
+  global screen_spawn_id dataList gnuplotInfo xcrysdenInfo
+  toplevel .tSSH
+  wm title .tSSH SSH
+  set fpSSH [open ~/.omxtoolssh "RDONLY CREAT"]
+  set numPath 0
+  set dataList ""
+  while {[gets $fpSSH data]>=0} {
+    labelframe .tSSH.lf$numPath -text [lindex [split [lindex $data 2] .] 0]
+    button .tSSH.lf$numPath.bSSH -text SSH -command "
+    set sshReturn \[ssh [llength $data] \"$data\"\]
+    if {\$sshReturn==2} {
+    toplevel .tSSH.tBastion
+    grab set .tSSH.tBastion
+    set numPath \[llength \$dataList\]
+    for {set i 0} {\$i<\$numPath} {incr i} {
+    if {\$i==$numPath} {
+    button .tSSH.tBastion.b\$i -text \[lindex \[split \[lindex \$dataList \$i 2\] .\] 0\] -command \"
+    destroy .tSSH.tBastion
+    ssh [llength $data] {$data}
+    \"
+    } else {
+    button .tSSH.tBastion.b\$i -text \[lindex \[split \[lindex \$dataList \$i 2\] .\] 0\] -command \"
+    destroy .tSSH.tBastion
+    sshBastion \[llength \[lindex \$dataList \$i\]\] {\[lindex \$dataList \$i\]} [llength $data] {$data}
+    \"
+    }
+    pack .tSSH.tBastion.b\$i
+    }
+    }
+    "
+    button .tSSH.lf$numPath.bSFTP -text SFTP -command "ssh [llength $data] \"$data\" \"sftp\""
+    button .tSSH.lf$numPath.bDownload -text Download -command "download [llength $data] \"$data\""
+    button .tSSH.lf$numPath.bUpload -text Upload -command "upload [llength $data] \"$data\""
+    button .tSSH.lf$numPath.bTransport -text Transport -command "
+    toplevel .tSSH.tTransport
+    grab set .tSSH.tTransport
+    set numPath \[llength \$dataList\]
+    for {set i 0} {\$i<\$numPath} {incr i} {
+    button .tSSH.tTransport.b\$i -text \[lindex \[split \[lindex \$dataList \$i 2\] .\] 0\] -command \"
+    destroy .tSSH.tTransport
+    transport [llength $data] {$data} \[llength \[lindex \$dataList \$i\]\] {\[lindex \$dataList \$i\]}
+    \"
+    pack .tSSH.tTransport.b\$i
+    }
+    "
+    button .tSSH.lf$numPath.bDownloadDir -text DownloadDir -command "downloadDir [llength $data] \"$data\""
+    button .tSSH.lf$numPath.bUploadDir -text UploadDir -command "uploadDir [llength $data] \"$data\""
+    button .tSSH.lf$numPath.bTransportDir -text TransportDir -command "
+    toplevel .tSSH.tTransportDir
+    grab set .tSSH.tTransportDir
+    set numPath \[llength \$dataList\]
+    for {set i 0} {\$i<\$numPath} {incr i} {
+    button .tSSH.tTransportDir.b\$i -text \[lindex \[split \[lindex \$dataList \$i 2\] .\] 0\] -command \"
+    destroy .tSSH.tTransportDir
+    transportDir [llength $data] {$data} \[llength \[lindex \$dataList \$i\]\] {\[lindex \$dataList \$i\]}
+    \"
+    pack .tSSH.tTransportDir.b\$i
+    }
+    "
+    if {$gnuplotInfo ne "" || $xcrysdenInfo ne ""} {
+      button .tSSH.lf$numPath.bView -text View -command "view [llength $data] \"$data\""
+    }
+    pack .tSSH.lf$numPath.bSSH .tSSH.lf$numPath.bSFTP .tSSH.lf$numPath.bDownload .tSSH.lf$numPath.bUpload .tSSH.lf$numPath.bTransport .tSSH.lf$numPath.bDownloadDir .tSSH.lf$numPath.bUploadDir .tSSH.lf$numPath.bTransportDir .tSSH.lf$numPath.bView
+    lappend pathList .tSSH.lf$numPath
+    lappend dataList $data
+    incr numPath
+  }
+  close $fpSSH
+  button .tSSH.bSwitch -text Switch -command "exp_send -i $screen_spawn_id \" w\""
+  button .tSSH.bAdd -text Add -command {
+    set id ""
+    set pass ""
+    set host ""
+    set pri_key ""
+    toplevel .tSSH.tAdd
+    wm title .tSSH.tAdd Add
+    grab set .tSSH.tAdd
+    frame .tSSH.tAdd.fMenu
+    button .tSSH.tAdd.fMenu.bClose -text Close -command {
+      destroy .tSSH.tAdd
+    }
+    frame .tSSH.tAdd.fIDPW
+    frame .tSSH.tAdd.fIDPW.fID
+    label .tSSH.tAdd.fIDPW.fID.l -text "Login Name"
+    entry .tSSH.tAdd.fIDPW.fID.e -textvariable id -width 10
+    frame .tSSH.tAdd.fIDPW.fPassword
+    label .tSSH.tAdd.fIDPW.fPassword.l -text "Password"
+    entry .tSSH.tAdd.fIDPW.fPassword.e -textvariable pass -width 10
+    frame .tSSH.tAdd.fHostName
+    label .tSSH.tAdd.fHostName.l -text "Host Name"
+    entry .tSSH.tAdd.fHostName.e -textvariable host -width 20
+    frame .tSSH.tAdd.fPrivateKey
+    label .tSSH.tAdd.fPrivateKey.l -text "Private Key"
+    entry .tSSH.tAdd.fPrivateKey.e -textvariable pri_key -width 20
+    button .tSSH.tAdd.fPrivateKey.b -text Select -command {
+      set tmp [tk_getOpenFile -initialdir $WD -title "Select a private key" -parent .tSSH.tAdd]
+      if {$tmp ne ""} {
+	set pri_key $tmp
+      }
+    }
+    button .tSSH.tAdd.fMenu.bAdd -text Add -command {
+      lappend dataList "$id $pass $host $pri_key on {} {}"
+      set fpSSH [open ~/.omxtoolssh w]
+      foreach data $dataList {
+	puts $fpSSH $data
+      }
+      close $fpSSH
+      destroy .tSSH
+      openSSH
+    }
+    pack .tSSH.tAdd.fIDPW.fID.l .tSSH.tAdd.fIDPW.fID.e -side left
+    pack .tSSH.tAdd.fIDPW.fPassword.l .tSSH.tAdd.fIDPW.fPassword.e -side left
+    pack .tSSH.tAdd.fHostName.l .tSSH.tAdd.fHostName.e -side left
+    pack .tSSH.tAdd.fPrivateKey.l .tSSH.tAdd.fPrivateKey.e .tSSH.tAdd.fPrivateKey.b -side left
+    pack .tSSH.tAdd.fIDPW.fID .tSSH.tAdd.fIDPW.fPassword -side left
+    pack .tSSH.tAdd.fMenu.bAdd .tSSH.tAdd.fMenu.bClose -side left
+    pack .tSSH.tAdd.fIDPW .tSSH.tAdd.fHostName .tSSH.tAdd.fPrivateKey .tSSH.tAdd.fMenu
+  }
+  button .tSSH.bSetting -text Setting -command {
+    toplevel .tSSH.tSetting
+    wm title .tSSH.tSetting Setting
+    grab set .tSSH.tSetting
+    frame .tSSH.tSetting.fMenu
+    button .tSSH.tSetting.fMenu.bClose -text Close -command {
+      destroy .tSSH.tSetting
+    }
+    set numPath [llength $dataList]
+    for {set i 0} {$i<$numPath} {incr i} {
+      button .tSSH.tSetting.fMenu.b$i -text [lindex [split [lindex $dataList $i 2] .] 0] -command "
+      set id [lindex $dataList $i 0]
+      set pass [lindex $dataList $i 1]
+      set host [lindex $dataList $i 2]
+      set pri_key {[lindex $dataList $i 3]}
+      set x_mode {[lindex $dataList $i 4]}
+      set commands {[lindex $dataList $i 5]}
+      set pathList \"\"
+      toplevel .tSSH.tSetting.tModify
+      wm title .tSSH.tSetting.tModify Modify
+      grab set .tSSH.tSetting.tModify
+      frame .tSSH.tSetting.tModify.fMenu
+      button .tSSH.tSetting.tModify.fMenu.bClose -text Close -command {
+      destroy .tSSH.tSetting.tModify
+      grab set .tSSH.tSetting
+      }
+      frame .tSSH.tSetting.tModify.fIDPW
+      frame .tSSH.tSetting.tModify.fIDPW.fID
+      label .tSSH.tSetting.tModify.fIDPW.fID.l -text \"Login Name\"
+      entry .tSSH.tSetting.tModify.fIDPW.fID.e -textvariable id -width 10
+      frame .tSSH.tSetting.tModify.fIDPW.fPassword
+      label .tSSH.tSetting.tModify.fIDPW.fPassword.l -text \"Password\"
+      entry .tSSH.tSetting.tModify.fIDPW.fPassword.e -textvariable pass -width 10
+      frame .tSSH.tSetting.tModify.fHostName
+      label .tSSH.tSetting.tModify.fHostName.l -text \"Host Name\"
+      entry .tSSH.tSetting.tModify.fHostName.e -textvariable host -width 20
+      frame .tSSH.tSetting.tModify.fPrivateKey
+      label .tSSH.tSetting.tModify.fPrivateKey.l -text \"Private Key\"
+      entry .tSSH.tSetting.tModify.fPrivateKey.e -textvariable pri_key -width 20
+      button .tSSH.tSetting.tModify.fPrivateKey.b -text Setting -command {
+      set tmp \[tk_chooseDirectory -initialdir \$WD -title \"Setting a working directory\" -parent .tSSH.tSetting.tModify\]
+      if {\$tmp ne \"\"} {
+      set pri_key \$tmp
+      }
+      }
+      button .tSSH.tSetting.tModify.fMenu.bDelete -text Delete -command {
+      set dataList \[lreplace \$dataList $i $i\]
+      set fpSSH \[open ~/.omxtoolssh w\]
+      foreach data \$dataList {
+      puts \$fpSSH \$data
+      }
+      close \$fpSSH
+      destroy .tSSH
+      openSSH
+      }
+      button .tSSH.tSetting.tModify.fMenu.bModify -text Modify -command {
+      set commands \"\"
+      set i 1
+      while {1} {
+      set cmd \[.tSSH.tSetting.tModify.lfStartup.x get \$i.0 \$i.end\]
+      if {\$cmd eq \"\"} {
+      break
+      }
+      lappend commands \$cmd
+      incr i
+      }
+      lset dataList $i \"{\$id} {\$pass} {\$host} {\$pri_key} {\$x_mode} {\[join \$commands \\\;\]} {}\"
+      set fpSSH \[open ~/.omxtoolssh w\]
+      foreach data \$dataList {
+      puts \$fpSSH \$data
+      }
+      close \$fpSSH
+      destroy .tSSH
+      openSSH
+      }
+      frame .tSSH.tSetting.tModify.fXmode
+      label .tSSH.tSetting.tModify.fXmode.l -text \"X11\"
+      radiobutton .tSSH.tSetting.tModify.fXmode.rbOn -text On -variable x_mode -value on
+      radiobutton .tSSH.tSetting.tModify.fXmode.rbOff -text Off -variable x_mode -value off
+      labelframe .tSSH.tSetting.tModify.lfStartup -text \"Startup Commands\"
+      text .tSSH.tSetting.tModify.lfStartup.x
+      foreach command \[split \$commands ,\] {
+      .tSSH.tSetting.tModify.lfStartup.x insert end \$command
+      }
+      pack .tSSH.tSetting.tModify.fIDPW.fID.l .tSSH.tSetting.tModify.fIDPW.fID.e -side left
+      pack .tSSH.tSetting.tModify.fIDPW.fPassword.l .tSSH.tSetting.tModify.fIDPW.fPassword.e -side left
+      pack .tSSH.tSetting.tModify.fHostName.l .tSSH.tSetting.tModify.fHostName.e -side left
+      pack .tSSH.tSetting.tModify.fPrivateKey.l .tSSH.tSetting.tModify.fPrivateKey.e .tSSH.tSetting.tModify.fPrivateKey.b -side left
+      pack .tSSH.tSetting.tModify.fIDPW.fID .tSSH.tSetting.tModify.fIDPW.fPassword -side left
+      pack .tSSH.tSetting.tModify.fMenu.bModify .tSSH.tSetting.tModify.fMenu.bDelete .tSSH.tSetting.tModify.fMenu.bClose -side left
+      pack .tSSH.tSetting.tModify.fXmode.l .tSSH.tSetting.tModify.fXmode.rbOn .tSSH.tSetting.tModify.fXmode.rbOff -side left
+      pack .tSSH.tSetting.tModify.lfStartup.x
+      pack .tSSH.tSetting.tModify.fIDPW .tSSH.tSetting.tModify.fHostName .tSSH.tSetting.tModify.fPrivateKey .tSSH.tSetting.tModify.fXmode .tSSH.tSetting.tModify.lfStartup .tSSH.tSetting.tModify.fMenu
+      "
+      lappend pathList .tSSH.tSetting.fMenu.b$i
+    }
+    if {[info exists pathList]} {
+      eval pack $pathList
+    }
+    pack .tSSH.tSetting.fMenu.bClose
+    pack .tSSH.tSetting.fMenu
+  }
+  button .tSSH.bReset -text Reset -command {
+  }
+  button .tSSH.bClose -text Close -command {
+    destroy .tSSH
+    saveSetting
+  }
+  button .tSSH.bExtension -text Extension -command {
+    toplevel .tSSH.tExtension
+    wm title .tSSH.tExtension Extension
+    grab set .tSSH.tExtension
+    button .tSSH.tExtension.bClose -text Close -command {
+      destroy .tSSH.tExtension
+      grab set .tSSH
+    }
+    frame .tSSH.tExtension.fRashba
+    label .tSSH.tExtension.fRashba.l -text "Rashba Parameters Estimation (Beta)"
+    radiobutton .tSSH.tExtension.fRashba.rbOn -text On -variable RashbaExtension -value on
+    radiobutton .tSSH.tExtension.fRashba.rbOff -text Off -variable RashbaExtension -value off
+    pack .tSSH.tExtension.fRashba .tSSH.tExtension.bClose
+    pack .tSSH.tExtension.fRashba.l .tSSH.tExtension.fRashba.rbOn .tSSH.tExtension.fRashba.rbOff -side left
+  }
+  if {[info exists pathList]} {
+    eval pack $pathList -side left
+  }
+  pack .tSSH.bSwitch
+  pack .tSSH.bAdd
+  pack .tSSH.bSetting
+  pack .tSSH.bClose
+}
+proc xcrysden {} {
+  global dir
+  set filename [tk_getOpenFile -initialdir $dir -filetypes {{{XYZ Files} {.xyz}} {{MD Files} {.md}} {{Gaussian Cube Files} {.cube}} {{XCrySDen Structure Files} {.xsf}} {{Band-XSF Files} {.bxsf}}}]
+  switch [file extension $filename] {
+    ".md" -
+    ".xyz" {
+      catch {exec xcrysden --xyz $filename &}
+    }
+    ".xsf" {
+      catch {exec xcrysden --xsf $filename &}
+    }
+    ".bxsf" {
+      catch {exec xcrysden --bxsf $filename &}
+    }
+    ".cube" {
+      catch {exec xcrysden --cube $filename &}
+    }
+  }
+}
 proc status {} {
   set stat ""
   if {![catch {exec qstat}]} {
-    if {![catch {set stat [exec qstat -T | grep $::env(USER)]}]} {
+    if {![catch {set stat [exec qstat -tT | grep $::env(USER)]}]} {
     } elseif {![catch {exec point}]} {
       set stat [exec point]
     } else {
@@ -187,6 +2387,221 @@ proc Rashba {path nkpath lOrigin band numBand center direction convex} {
 	puts "E_R = $E_R"
 	puts "alpha_R = $alpha_R"
 	puts "minimum: [lindex $kE($direction) [expr {$j+1}] 1]"
+      }
+    } else {
+      set eigen0 [lindex $kE($center) 0 1]
+      set n [llength $kE($center)]
+      for {set j 1} {$j<$n} {incr j} {
+	set eigen [lindex $kE($center) $j 1]
+	if {$eigen0<$eigen} {
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j-1}]
+	  }
+	}
+	set eigen0 $eigen
+      }
+      if {$j<$n} {
+	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) $degeneratePoint 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {[lindex $kE($center) $degeneratePoint 1]-[lindex $kE($center) [expr {$j-1}] 1]}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1])*0.5-[lindex $kE($center) [expr {$j-1}] 1]}]
+	} else {
+	  set E_R [expr {([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1]+[lindex $kEInner2($center) $degeneratePoint 1]+[lindex $kEInner3($center) $degeneratePoint 1])*0.25-([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kE($center) [expr {$j-1}] 1])*0.5}]
+	}
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+	puts "minimum: [lindex $kE($center) [expr {$j-1}] 1]"
+      }
+    }
+  } else {
+    if {$center>$direction} {
+      set eigen0 [lindex $kE($direction) end 1]
+      for {set j [expr {[llength $kE($direction)]-2}]} {$j>=0} {incr j -1} {
+	set eigen [lindex $kE($direction) $j 1]
+	if {$eigen0>$eigen} {
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j+1}]
+	  }
+	}
+	set eigen0 $eigen
+      }
+      if {$j>=0} {
+	set k_R [expr {([lindex $kE($direction) $degeneratePoint 0]-[lindex $kE($direction) [expr {$j+1}] 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {[lindex $kE($direction) [expr {$j+1}] 1]-[lindex $kE($direction) $degeneratePoint 1]}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {[lindex $kE($direction) [expr {$j+1}] 1]-([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1])*0.5}]
+	} else {
+	  set E_R [expr {([lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kEInner1($direction) [expr {$j+1}] 1])*0.5-([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1]+[lindex $kEInner2($direction) $degeneratePoint 1]+[lindex $kEInner3($direction) $degeneratePoint 1])*0.25}]
+	}
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+	puts "maximum: [lindex $kE($direction) [expr {$j+1}] 1]"
+      }
+    } else {
+      set eigen0 [lindex $kE($center) 0 1]
+      set n [llength $kE($center)]
+      for {set j 1} {$j<$n} {incr j} {
+	set eigen [lindex $kE($center) $j 1]
+	if {$eigen0>$eigen} {
+	  if {$degeneratePoint>=0} {
+	    break
+	  }
+	} else {
+	  if {$degeneratePoint<0} {
+	    set degeneratePoint [expr {$j-1}]
+	  }
+	}
+	set eigen0 $eigen
+      }
+      if {$j<$n} {
+	set k_R [expr {([lindex $kE($center) [expr {$j-1}] 0]-[lindex $kE($center) $degeneratePoint 0])/$Bohr2Angstrom}]
+	if {$numBand==1} {
+	  set E_R [expr {[lindex $kE($center) [expr {$j-1}] 1]-[lindex $kE($center) $degeneratePoint 1]}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {[lindex $kE($center) [expr {$j-1}] 1]-([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1])*0.5}]
+	} else {
+	  set E_R [expr {([lindex $kE($center) [expr {$j-1}] 1]+[lindex $kEInner1($center) [expr {$j-1}] 1])*0.5-([lindex $kE($center) $degeneratePoint 1]+[lindex $kEInner1($center) $degeneratePoint 1]+[lindex $kEInner2($center) $degeneratePoint 1]+[lindex $kEInner3($center) $degeneratePoint 1])*0.25}]
+	}
+	set alpha_R [expr {2*$E_R/$k_R}]
+	puts "k_R = $k_R"
+	puts "E_R = $E_R"
+	puts "alpha_R = $alpha_R"
+	puts "maximum: [lindex $kE($center) [expr {$j-1}] 1]"
+      }
+    }
+  }
+}
+proc Fermi {path nkpath lOrigin band numBand center direction convex} {
+  set Bohr2Angstrom 0.52917721092
+  set eV2Hartree [expr {1/27.21138505}]
+  set fp [open $path.BANDDAT1]
+  for {set i 0} {$i<($band-$lOrigin-$numBand+2)*$nkpath-1} {incr i} {
+    while {[gets $fp data]>0} {
+    }
+    gets $fp data
+  }
+  if {$convex eq "upward"} {
+    if {$numBand==4} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner3($i) $data
+	}
+	gets $fp data
+      }
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner2($i) $data
+	}
+	gets $fp data
+      }
+    }
+    if {$numBand>1} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner1($i) $data
+	}
+	gets $fp data
+      }
+    }
+  } else {
+    for {set j 0} {$j<$numBand-1} {incr j} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	}
+	gets $fp data
+      }
+    }
+  }
+  for {set i 0} {$i<$nkpath} {incr i} {
+    while {[gets $fp data]>0} {
+      lappend kE($i) $data
+    }
+    gets $fp data
+  }
+  if {$convex eq "downward"} {
+    if {$numBand>1} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner1($i) $data
+	}
+	gets $fp data
+      }
+    }
+    if {$numBand==4} {
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner2($i) $data
+	}
+	gets $fp data
+      }
+      for {set i 0} {$i<$nkpath} {incr i} {
+	while {[gets $fp data]>0} {
+	  lappend kEInner3($i) $data
+	}
+	gets $fp data
+      }
+    }
+  }
+  set degeneratePoint -1
+  if {$convex eq "downward"} {
+    if {$center>$direction} {
+      set min end
+      set eigen0 [lindex $kE($direction) end 1]
+      set eigenF $eigen0
+      set eigenMin $eigen0
+      for {set j [expr {[llength $kE($direction)]-2}]} {$j>=0} {incr j -1} {
+	set eigen [lindex $kE($direction) $j 1]
+	if {$eigen0<$eigen} {
+	  if {$eigen>0} {
+	    set eigenF $eigen0
+	    break
+	  }
+	} else {
+	  set min $j
+	  set eigenMin $eigen0
+	}
+	set eigen0 $eigen
+      }
+      puts $min
+      puts $eigenMin
+      puts $eigenF
+      if {$j>=0} {
+	set k_F [expr {([lindex $kE($direction) $min 0]-[lindex $kE($direction) [expr {$j+1}] 0])}]
+	if {$numBand==1} {
+	  set E_F [expr {([lindex $kE($direction) [expr {$j+1}] 1]-[lindex $kE($direction) $min 1])*$eV2Hartree}]
+	  set dk [expr {[lindex $kE($direction) $j 0]-[lindex $kE($direction) [expr {$j+2}] 0]}]
+	  set dEdk [expr {([lindex $kE($direction) [expr {$j}] 1]-[lindex $kE($direction) [expr {$j+2}] 1])*$eV2Hartree/$dk}]
+	  set d2Edk2 [expr {([lindex $kE($direction) [expr {$j}] 1]-2*[lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kE($direction) [expr {$j+2}] 1])*$eV2Hartree/($dk*$dk)}]
+	} elseif {$numBand==2} {
+	  set E_R [expr {([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1])*0.5-[lindex $kE($direction) [expr {$j+1}] 1]}]
+	} else {
+	  set E_R [expr {([lindex $kE($direction) $degeneratePoint 1]+[lindex $kEInner1($direction) $degeneratePoint 1]+[lindex $kEInner2($direction) $degeneratePoint 1]+[lindex $kEInner3($direction) $degeneratePoint 1])*0.25-([lindex $kE($direction) [expr {$j+1}] 1]+[lindex $kE($direction) [expr {$j+1}] 1])*0.5}]
+	}
+	set mstar [expr {$k_F*$k_F/$E_F}]
+	set velocity [expr {2*$k_F/$mstar}]
+	set v_F [expr {sqrt(3*$dEdk*$dEdk)}]
+	puts "k_F = $k_F"
+	puts "E_F = $E_F"
+	puts "mstar = $mstar"
+	puts "mstarF = [expr {1/$d2Edk2}]"
+	puts "velocity = $velocity"
+	puts "velocityF = $dEdk"
+	puts "v_F =$v_F"
+	puts "minimum: [lindex $kE($direction) $min 1]"
       }
     } else {
       set eigen0 [lindex $kE($center) 0 1]
@@ -493,7 +2908,7 @@ proc bandgnu {argc argv} {
     return "$Emin $Emax $nkpath $mspin $lmin(0) $lmax(0)"
   }
 }
-proc band {} {
+proc band {args} {
   global rootPath dir path nwin gp yraMin yraMax fontSize bandgnuPath bandgnuMode bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType gnuplotVersion BANDDAT1Width BANDDAT2Width branchWidth LCMode lmin lmax branchMode yraFull RashbaExtension
   if {$bandgnuMode eq "C"} {
     if {$bandgnuPath eq ""} {
@@ -505,7 +2920,11 @@ proc band {} {
       }
     }
   }
-  set path [tk_getOpenFile -initialdir $dir -filetypes {{{Band Data} {.Band}}}]
+  if {[llength $args]==0} {
+    set path [tk_getOpenFile -initialdir $dir -filetypes {{{Band Data} {.Band}}}]
+  } else {
+    set path [lindex $args 0]
+  }
   if {$path ne ""} {
     set dir [file dirname $path]
   } else {
@@ -679,7 +3098,8 @@ proc band {} {
 	lappend lineStyle \"lc '\$BANDDAT1Color'\"
 	}
 	}
-	puts $p \"  plot '$path.BANDDAT1' \[join \$lineStyle\]\"
+	puts $p \"  se gri xti\"
+	puts $p \"  p '$path.BANDDAT1' in \[expr {$nkpath-1}\]:\[expr {(\$lmax($nwin\\)\\(1)-\$lmin($nwin\\)\\(1)+2)*$nkpath-2}\] \[join \$lineStyle\]\"
 	if {$mspin} {
 	set lineStyle \"lt \$BANDDAT2Type\"
 	lappend lineStyle \"lw \$BANDDAT2Width\"
@@ -690,7 +3110,7 @@ proc band {} {
 	lappend lineStyle \"lc '\$BANDDAT2Color'\"
 	}
 	}
-	puts $p \"  rep '$path.BANDDAT2' \[join \$lineStyle\]\"
+	puts $p \"  rep '$path.BANDDAT2' in \[expr {$nkpath-1}\]:\[expr {(\$lmax($nwin\\)\\(2)-\$lmin($nwin\\)\\(2)+2)*$nkpath-2}\] \[join \$lineStyle\]\"
 	}
 	"
 	frame .t$nwin.fBranch
@@ -770,6 +3190,7 @@ proc band {} {
 	radiobutton .t$nwin.tRashba.fConvex.rbUpward -text \"upward\" -variable convex($nwin) -value upward
 	frame .t$nwin.tRashba.fCommon
 	button .t$nwin.tRashba.fCommon.bRashba -text \"Rashba\" -command {Rashba $dir/$path $nkpath $lmin($nwin\)\(1) \[.t$nwin.tRashba.fBand.sbBand get\] \$numBand($nwin) \$center($nwin) \$direction($nwin) \$convex($nwin)}
+	button .t$nwin.tRashba.fCommon.bFermi -text \"Fermi\" -command {Fermi $dir/$path $nkpath $lmin($nwin\)\(1) \[.t$nwin.tRashba.fBand.sbBand get\] \$numBand($nwin) \$center($nwin) \$direction($nwin) \$convex($nwin)}
 	button .t$nwin.tRashba.fCommon.bClose -text Close -command {
 	destroy .t$nwin.tRashba
 	}
@@ -779,7 +3200,7 @@ proc band {} {
 	pack .t$nwin.tRashba.fKP
 	pack .t$nwin.tRashba.fConvex.rbDownward .t$nwin.tRashba.fConvex.rbUpward -side left
 	pack .t$nwin.tRashba.fConvex
-	pack .t$nwin.tRashba.fCommon.bRashba .t$nwin.tRashba.fCommon.bClose -side left
+	pack .t$nwin.tRashba.fCommon.bRashba .t$nwin.tRashba.fCommon.bFermi .t$nwin.tRashba.fCommon.bClose -side left
 	pack .t$nwin.tRashba.fCommon
 	"
 	pack .t$nwin.fGnuplot
@@ -975,7 +3396,7 @@ proc b2b {} {
   }
 }
 proc saveSetting {} {
-  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType BANDDAT1Width BANDDAT2Width branchWidth LCMode BANDDAT1RGBColor BANDDAT2RGBColor branchRGBColor yraFull RashbaExtension
+  global rootPath yraMax yraMin fontSize bandgnuPath bandgnuMode WD bandgnuAE ylabel bandgnuColor bandgnuPreview bandgnuExport bandgnuEnhanced ratio ytics BANDDAT1Color BANDDAT2Color branchColor BANDDAT1Type BANDDAT2Type branchType BANDDAT1Width BANDDAT2Width branchWidth LCMode BANDDAT1RGBColor BANDDAT2RGBColor branchRGBColor yraFull RashbaExtension debugMode
   set fprc [open $rootPath/.omxtoolrc w]
   puts $fprc "set yraMax {$yraMax}"
   puts $fprc "set yraMin {$yraMin}"
@@ -1006,6 +3427,20 @@ proc saveSetting {} {
   puts $fprc "set branchRGBColor {$branchRGBColor}"
   puts $fprc "set yraFull {$yraFull}"
   puts $fprc "set RashbaExtension {$RashbaExtension}"
+  puts $fprc "set debugMode {$debugMode}"
+  close $fprc
+}
+proc saveScreenSetting {} {
+  global rootPath
+  set fprc [open $rootPath/.omxtoolscreen w]
+  puts $fprc {shell -$SHELL}
+  puts $fprc {autodetach off}
+  puts $fprc {termcapinfo xterm* ti@:te@}
+  puts $fprc {altscreen on}
+  puts $fprc {term screen-256color}
+  puts $fprc {startup_message off}
+  puts $fprc {escape t}
+  puts $fprc {defscrollback 10000}
   close $fprc
 }
 proc openOption {} {
@@ -1043,8 +3478,13 @@ proc openOption {} {
 	set WD $tmp
       }
     }
-    pack .tOption.tCommon.fPath .tOption.tCommon.bClose
+    frame .tOption.tCommon.fDebugMode
+    label .tOption.tCommon.fDebugMode.l -text "Debug Mode"
+    radiobutton .tOption.tCommon.fDebugMode.rbOn -text On -variable debugMode -value on
+    radiobutton .tOption.tCommon.fDebugMode.rbOff -text Off -variable debugMode -value off
+    pack .tOption.tCommon.fPath .tOption.tCommon.fDebugMode .tOption.tCommon.bClose
     pack .tOption.tCommon.fPath.l .tOption.tCommon.fPath.e .tOption.tCommon.fPath.b -side left
+    pack .tOption.tCommon.fDebugMode.l .tOption.tCommon.fDebugMode.rbOn .tOption.tCommon.fDebugMode.rbOff -side left
   }
   button .tOption.bbandgnu -text bandgnu -command {
     toplevel .tOption.tbandgnu
@@ -1152,6 +3592,7 @@ proc openOption {} {
     set branchRGBColor #0000ff
     set yraFull off
     set RashbaExtension off
+    set debugMode off
   }
   button .tOption.bClose -text Close -command {
     destroy .tOption
@@ -1584,48 +4025,160 @@ set BANDDAT2RGBColor #00ff00
 set branchRGBColor #0000ff
 set yraFull off
 set RashbaExtension off
+set debugMode off
 if [file exists $rootPath/.omxtoolrc] {
   source $rootPath/.omxtoolrc
 } else {
   saveSetting
 }
 set dir $WD
-wm protocol . WM_DELETE_WINDOW {exit}
+wm protocol . WM_DELETE_WINDOW quit
 if {[info exists env(HOSTNAME)]} {
   set HOSTNAME $env(HOSTNAME)
 } else {
   set HOSTNAME localhost
 }
 wm title . "OMXTool@$HOSTNAME"
+set buff [status]
+set buff1 [status1]
 label .l0 -textvariable buff
 label .l1 -textvariable buff1 -justify left
 button .bband -text Band -command band
+button .bXcrysden -text XCrySDen -command xcrysden
 button .bOption -text Option -command openOption
-button .bexit -text Exit -command exit
+button .bexit -text Exit -command quit
+button .bInput -text Input -command input
 button .bInfo -text Info -command {
   toplevel .tInfo
   wm title .tInfo Info
   grab set .tInfo
-  label .tInfo.lVersion -text "OMXTool Ver. 1.5.9 Copyright (C), 2015-2017, Naoya Yamaguchi."
+  label .tInfo.lVersion -text "OMXTool Ver. beta-2 Copyright (C), 2015-2017, Naoya Yamaguchi. [what $argv0]"
   button .tInfo.bClose -text Close -command {
     destroy .tInfo
   }
   pack .tInfo.lVersion .tInfo.bClose
 }
-if {[info patchlevel]>=8.5} {
-  button .bbin2bin -text bin2bin -command b2b
-  pack .l0 .l1 .bband .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
-} else {
-  pack .l0 .l1 .bband .bOption .bInfo .bexit -expand 1 -fill both
+set interact_flag true
+button .bSSH -text SSH -command {
+  if {![winfo exists .tSSH]} {
+    openSSH
+  } else {
+    raise .tSSH
+    focus .tSSH
+  }
 }
-set gnuplotInfo [exec gnuplot --version]
-set gnuplotVersion [lindex $gnuplotInfo 1]
-set gnuplotPatchlevel [lindex $gnuplotInfo 3]
-while 1 {
-  set buff [status]
-  set buff1 [status1]
-  .l0 configure -textvariable buff
-  .l1 configure -textvariable buff1
-  update
-  after 100
+set gnuplotInfo ""
+set xcrysdenInfo ""
+if {$tclsh eq "expect"} {
+  if {![catch {exec which xcrysden}]} {
+    set xcrysdenInfo [exec xcrysden -v]
+    set xcrysdenVersion [lindex $xcrysdenInfo 2]
+    if {![catch {exec which gnuplot}]} {
+      set gnuplotInfo [exec gnuplot --version]
+      set gnuplotVersion [lindex $gnuplotInfo 1]
+      set gnuplotPatchlevel [lindex $gnuplotInfo 3]
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bSSH .bInput .bXcrysden .bband .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bSSH .bInput .bXcrysden .bband .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    } else {
+      puts "Warning: 'Gnuplot' is not found."
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bSSH .bInput .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bSSH .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    }
+  } else {
+    if {![catch {exec which gnuplot}]} {
+      set gnuplotInfo [exec gnuplot --version]
+      set gnuplotVersion [lindex $gnuplotInfo 1]
+      set gnuplotPatchlevel [lindex $gnuplotInfo 3]
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bSSH .bInput .bband .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bSSH .bband .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    } else {
+      puts "Warning: 'Gnuplot' is not found."
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bSSH .bInput .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bSSH .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    }
+  }
+} else {
+  if {![catch {exec which xcrysden}]} {
+    set xcrysdenInfo [exec xcrysden -v]
+    set xcrysdenVersion [lindex $xcrysdenInfo 2]
+    if {![catch {exec which gnuplot}]} {
+      set gnuplotInfo [exec gnuplot --version]
+      set gnuplotVersion [lindex $gnuplotInfo 1]
+      set gnuplotPatchlevel [lindex $gnuplotInfo 3]
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bInput .bXcrysden .bband .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bXcrysden .bband .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    } else {
+      puts "Warning: 'Gnuplot' is not found."
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bInput .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    }
+  } else {
+    if {![catch {exec which gnuplot}]} {
+      set gnuplotInfo [exec gnuplot --version]
+      set gnuplotVersion [lindex $gnuplotInfo 1]
+      set gnuplotPatchlevel [lindex $gnuplotInfo 3]
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bInput .bband .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bband .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    } else {
+      puts "Warning: 'Gnuplot' is not found."
+      if {[info patchlevel]>=8.5} {
+	button .bbin2bin -text bin2bin -command b2b
+	pack .l0 .l1 .bInput .bbin2bin .bOption .bInfo .bexit -expand 1 -fill both
+      } else {
+	pack .l0 .l1 .bOption .bInfo .bexit -expand 1 -fill both
+      }
+    }
+  }
+}
+if {$tclsh eq "expect"} {
+  if {![file exists $rootPath/.omxtoolscreen]} {
+    saveScreenSetting
+  }
+  spawn screen -c $rootPath/.omxtoolscreen
+  set screen_spawn_id $spawn_id
+  catch {
+    interact -i $screen_spawn_id timeout 1 {
+      set buff [status]
+      set buff1 [status1]
+      .l0 configure -textvariable buff
+      .l1 configure -textvariable buff1
+    }
+  }
+} else {
+  while {1} {
+    set buff [status]
+    set buff1 [status1]
+    .l0 configure -textvariable buff
+    .l1 configure -textvariable buff1
+    update
+    after 100
+  }
 }
